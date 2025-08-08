@@ -242,6 +242,17 @@ class GenericProduct(db.Model):
     generic_name = db.Column(db.String(255), nullable=False)
 
 
+# Store units per package for products.  Some products are sold in packs and
+# the reported quantity refers to the number of packs rather than individual
+# units.  This model tracks the number of units contained in one package for
+# each product.  If no record exists, the quantity is assumed to be 1.
+class PackageUnit(db.Model):
+    __tablename__ = "package_units"
+    id = db.Column(db.Integer, primary_key=True)
+    product_name = db.Column(db.String(255), unique=True, nullable=False)
+    units = db.Column(db.Float, nullable=False)
+
+
 # ---------------------------------------------------------------------------
 # Utility functions
 def create_tables() -> None:
@@ -1606,6 +1617,126 @@ def delete_generic_product(product_name: str) -> Any:
 
 
 # ---------------------------------------------------------------------------
+# Package units endpoints
+
+@app.route("/api/package_units", methods=["GET", "POST"])
+def package_units_api() -> Any:
+    """
+    List or update units-per-package assignments for products.
+
+    * GET: returns all package unit mappings as a list of objects
+      {product_name, units}.
+    * POST: create or update a package unit record.  The JSON body must
+      include ``product_name`` and ``units`` (float or int).  If a record
+      exists, its value is updated; otherwise a new record is created.
+    """
+    if request.method == "GET":
+        recs = PackageUnit.query.all()
+        return {"package_units": [
+            {"product_name": pu.product_name, "units": pu.units}
+            for pu in recs
+        ]}, 200
+    data = request.get_json(silent=True) or {}
+    product_name = (data.get("product_name") or "").strip()
+    units = data.get("units")
+    try:
+        units_val = float(units) if units is not None else None
+    except Exception:
+        return {"error": "units debe ser numérico"}, 400
+    if not product_name or units_val is None:
+        return {"error": "Se requieren product_name y units"}, 400
+    pu = PackageUnit.query.filter_by(product_name=product_name).first()
+    if pu:
+        pu.units = units_val
+    else:
+        pu = PackageUnit(product_name=product_name, units=units_val)
+        db.session.add(pu)
+    db.session.commit()
+    return {"product_name": pu.product_name, "units": pu.units}, 200
+
+
+@app.route("/api/package_units/<string:product_name>", methods=["DELETE"])
+def delete_package_unit(product_name: str) -> Any:
+    """
+    Delete a package unit record for a given product.
+    """
+    pu = PackageUnit.query.filter_by(product_name=product_name).first()
+    if not pu:
+        return {"error": "Unidades por paquete no encontradas"}, 404
+    db.session.delete(pu)
+    db.session.commit()
+    return {"message": "Unidades por paquete eliminadas"}, 200
+
+
+# ---------------------------------------------------------------------------
+# Additional session management endpoints
+
+@app.route("/api/sessions/<int:sess_id>", methods=["GET"])
+def get_session_details(sess_id: int) -> Any:
+    """
+    Return details of a single session including name, creator and documents count.
+    User must be the creator, be an admin or be shared via session_users.
+    """
+    sess = Session.query.get(sess_id)
+    if not sess:
+        return {"error": "Sesión no encontrada"}, 404
+    # Determine current user from header
+    user_email = request.headers.get("X-User-Email") or ""
+    current_user = User.query.filter_by(email=user_email).first() if user_email else None
+    if current_user is None:
+        return {"error": "No autorizado"}, 403
+    # Check access: admin or creator or shared
+    access_ids = [su.user_id for su in SessionUser.query.filter_by(session_id=sess.id).all()]
+    if not (current_user.is_admin or current_user.id == sess.created_by_id or current_user.id in access_ids):
+        return {"error": "No autorizado"}, 403
+    # Build response
+    doc_count = SessionDocument.query.filter_by(session_id=sess.id).count()
+    creator = User.query.get(sess.created_by_id)
+    return {
+        "id": sess.id,
+        "name": sess.name,
+        "created_by": creator.email if creator else None,
+        "created_at": sess.created_at.isoformat(),
+        "document_count": doc_count,
+    }, 200
+
+
+@app.route("/api/sessions/<int:sess_id>/add_documents", methods=["POST"])
+def add_documents_to_session(sess_id: int) -> Any:
+    """
+    Add selected documents to an existing session.  The request JSON must
+    include a ``document_ids`` list.  The user must have permission
+    (creator or admin) to modify the session.
+    """
+    sess = Session.query.get(sess_id)
+    if not sess:
+        return {"error": "Sesión no encontrada"}, 404
+    user_email = request.headers.get("X-User-Email") or ""
+    current_user = User.query.filter_by(email=user_email).first() if user_email else None
+    if current_user is None:
+        return {"error": "No autorizado"}, 403
+    # Only allow admin or creator to add documents
+    if not (current_user.is_admin or current_user.id == sess.created_by_id):
+        return {"error": "No autorizado"}, 403
+    data = request.get_json(silent=True) or {}
+    doc_ids = data.get("document_ids") or []
+    if not isinstance(doc_ids, list):
+        return {"error": "document_ids debe ser una lista"}, 400
+    added = 0
+    # Determine existing doc ids in session
+    existing_ids = {sd.document_id for sd in SessionDocument.query.filter_by(session_id=sess.id).all()}
+    for doc_id in doc_ids:
+        if doc_id and doc_id not in existing_ids:
+            # Verify document exists
+            if Document.query.get(doc_id):
+                sd = SessionDocument(session_id=sess.id, document_id=doc_id)
+                db.session.add(sd)
+                added += 1
+    db.session.commit()
+    return {"message": f"Se agregaron {added} documentos a la sesión"}, 200
+
+
+# ---------------------------------------------------------------------------
 # Product categorization endpoints
 
 @app.route("/api/products/categorization", methods=["GET"])
@@ -1644,6 +1775,8 @@ def product_categorization() -> Any:
         supplier_map.setdefault(prod_name, set()).add(supplier_name)
     # Build generic product mapping
     generic_map = {gp.product_name: gp.generic_name for gp in GenericProduct.query.all()}
+    # Build package units mapping
+    package_map = {pu.product_name: pu.units for pu in PackageUnit.query.all()}
     # Build manual category lookup
     manual_map = {mc.product_name.lower(): mc.category for mc in ManualCategory.query.all()}
     # Classification function (reuse heuristics from categories_analytics)
@@ -1686,6 +1819,7 @@ def product_categorization() -> Any:
         manual = name.lower() in manual_map
         suppliers = list(supplier_map.get(name, []))
         gen_name = generic_map.get(name, None)
+        units_per_package = package_map.get(name, None)
         rec = {
             "product_name": name,
             "total_qty": float(qty or 0),
@@ -1694,6 +1828,7 @@ def product_categorization() -> Any:
             "manual": manual,
             "supplier_names": suppliers,
             "generic_name": gen_name,
+            "units_per_package": units_per_package,
         }
         if cat == "Otros" and not manual:
             uncategorized.append(rec)

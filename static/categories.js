@@ -120,6 +120,45 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  // Create new category dynamically
+  const createCatBtn = document.getElementById('createCategoryBtn');
+  const newCatInput = document.getElementById('newCategoryInput');
+  if (createCatBtn && newCatInput) {
+    createCatBtn.addEventListener('click', () => {
+      const newCat = newCatInput.value.trim();
+      if (!newCat) return;
+      if (!allCategoryOptions.includes(newCat)) {
+        allCategoryOptions.push(newCat);
+        // Remove duplicates and sort
+        allCategoryOptions = Array.from(new Set(allCategoryOptions));
+        // Clear input
+        newCatInput.value = '';
+        // Re-render dropdown options
+        const bulkSelect = document.getElementById('bulkCategorySelect');
+        if (bulkSelect) {
+          bulkSelect.innerHTML = '';
+          const placeholder = document.createElement('option');
+          placeholder.value = '';
+          placeholder.textContent = '-- Categoría --';
+          bulkSelect.appendChild(placeholder);
+          allCategoryOptions.forEach((opt) => {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.textContent = opt;
+            bulkSelect.appendChild(option);
+          });
+        }
+        // Also update each row's select options
+        document.querySelectorAll('#categoriesBody select').forEach((sel) => {
+          const option = document.createElement('option');
+          option.value = newCat;
+          option.textContent = newCat;
+          sel.appendChild(option);
+        });
+      }
+    });
+  }
 });
 
 async function loadCategorization() {
@@ -245,6 +284,32 @@ function renderCategoriesTable() {
     const genTd = document.createElement('td');
     genTd.textContent = rec.generic_name || '';
     tr.appendChild(genTd);
+    // Units per package column: editable input
+    const unitsTd = document.createElement('td');
+    const unitsInput = document.createElement('input');
+    unitsInput.type = 'number';
+    unitsInput.min = '0';
+    unitsInput.step = 'any';
+    unitsInput.classList.add('form-control', 'form-control-sm', 'package-units');
+    // Fill value if available
+    if (rec.units_per_package !== null && rec.units_per_package !== undefined) {
+      unitsInput.value = rec.units_per_package;
+      unitsInput.dataset.originalUnits = String(rec.units_per_package);
+    } else {
+      unitsInput.value = '';
+      unitsInput.dataset.originalUnits = '';
+    }
+    // Highlight if changed
+    unitsInput.addEventListener('input', () => {
+      const orig = unitsInput.dataset.originalUnits;
+      if (unitsInput.value !== orig) {
+        unitsInput.classList.add('bg-info');
+      } else {
+        unitsInput.classList.remove('bg-info');
+      }
+    });
+    unitsTd.appendChild(unitsInput);
+    tr.appendChild(unitsTd);
     // Manual indicator
     const manualTd = document.createElement('td');
     manualTd.textContent = rec.manual ? 'Sí' : 'No';
@@ -256,7 +321,8 @@ function renderCategoriesTable() {
 function filterTable(term) {
   const rows = document.querySelectorAll('#categoriesBody tr');
   rows.forEach((row) => {
-    const productName = row.children[0].textContent.toLowerCase();
+    // Product name is in second cell (index 1) because index 0 is checkbox
+    const productName = row.children[1].textContent.toLowerCase();
     if (!productName.includes(term)) {
       row.style.display = 'none';
     } else {
@@ -268,21 +334,36 @@ function filterTable(term) {
 async function saveManualCategories() {
   const userEmail = localStorage.getItem('userEmail');
   const selects = document.querySelectorAll('#categoriesBody select');
-  const updates = [];
+  const catUpdates = [];
   selects.forEach((sel) => {
     const original = sel.dataset.original;
     const current = sel.value;
-    const product = sel.closest('tr').children[0].textContent;
+    const product = sel.closest('tr').querySelector('td:nth-child(2)').textContent;
     if (current !== original) {
-      updates.push({ product_name: product, category: current });
+      catUpdates.push({ product_name: product, category: current });
     }
   });
-  if (updates.length === 0) {
+  // Gather package unit updates
+  const unitInputs = document.querySelectorAll('#categoriesBody input.package-units');
+  const unitUpdates = [];
+  unitInputs.forEach((inp) => {
+    const original = inp.dataset.originalUnits;
+    const val = inp.value.trim();
+    const product = inp.closest('tr').querySelector('td:nth-child(2)').textContent;
+    if (val !== '' && val !== original) {
+      const units = parseFloat(val);
+      if (!isNaN(units)) {
+        unitUpdates.push({ product_name: product, units: units });
+      }
+    }
+  });
+  if (catUpdates.length === 0 && unitUpdates.length === 0) {
     alert('No hay cambios para guardar.');
     return;
   }
   try {
-    for (const upd of updates) {
+    // Save category changes
+    for (const upd of catUpdates) {
       const res = await fetch('/api/manual_categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -293,8 +374,19 @@ async function saveManualCategories() {
         throw new Error(data.error || 'Error al guardar categoría manual');
       }
     }
+    // Save units changes
+    for (const upd of unitUpdates) {
+      const res = await fetch('/api/package_units', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(upd),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al guardar cantidad por paquete');
+      }
+    }
     alert('Cambios guardados correctamente');
-    // Reload data to reflect manual flags and update heuristics
     loadCategorization();
   } catch (err) {
     alert(err.message);

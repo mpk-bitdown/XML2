@@ -15,7 +15,9 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
       <div class="container-fluid">
         <div class="d-flex align-items-center">
-          <img src="/static/logo/logo.png" height="40" alt="Logo" class="me-2" />
+          <a href="/" class="d-flex align-items-center text-decoration-none">
+            <img src="/static/logo/logo.png" height="40" alt="Logo" class="me-2" />
+          </a>
           <span class="navbar-brand mb-0 h1">Gestión Documental y Dashboards</span>
         </div>
         <div class="ms-auto d-flex align-items-center gap-2">
@@ -45,6 +47,9 @@
         <!-- Input for generic product mapping -->
         <input type="text" id="bulkGenericInput" class="form-control form-control-sm" placeholder="Producto genérico" style="max-width: 200px;" />
         <button id="applyBulkGenericBtn" class="btn btn-secondary btn-sm">Asignar genérico</button>
+        <!-- Controls for creating new category -->
+        <input type="text" id="newCategoryInput" class="form-control form-control-sm" placeholder="Nueva categoría" style="max-width: 200px;" />
+        <button id="createCategoryBtn" class="btn btn-secondary btn-sm">Crear categoría</button>
       </div>
       <div class="mb-3">
         <input type="text" id="categorySearch" class="form-control" placeholder="Buscar producto..." />
@@ -60,6 +65,7 @@
               <th>Categoría</th>
               <th>Empresa(s)</th>
               <th>Producto genérico</th>
+              <th>Cant. por paquete</th>
               <th>Manual</th>
             </tr>
           </thead>

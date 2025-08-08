@@ -67,6 +67,8 @@
           <a id="navSessionsLink" href="/sessions.html" class="btn btn-outline-light btn-sm">Sesiones</a>
           <!-- Link to categories AI page (visible to all users) -->
           <a id="navCategoriesLink" href="/categories.html" class="btn btn-outline-light btn-sm">Categorías AI</a>
+          <!-- Label showing current session name when viewing a saved session -->
+          <span id="currentSessionLabel" class="badge bg-light text-dark" style="display: none; font-size: 0.75rem;"></span>
           <button id="logoutBtn" class="btn btn-outline-light btn-sm" type="button" style="display: none;">Cerrar sesión</button>
         </div>
       </div>
@@ -143,12 +145,15 @@
           <div class="card shadow-sm">
             <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
               <span>Documentos cargados</span>
+              <span id="currentSessionBadge" class="badge bg-light text-dark ms-2" style="font-size: 0.75rem;"></span>
               <div class="d-flex gap-2">
                 <button id="deleteAllBtn" class="btn btn-danger btn-sm">Borrar todo</button>
                 <button id="purgeDuplicatesBtn" class="btn btn-warning btn-sm">Purgar duplicados</button>
                 <button id="exportCsvBtn" class="btn btn-outline-light btn-sm">Descargar CSV</button>
                 <!-- Button to save current documents as a session -->
                 <button id="saveSessionBtn" class="btn btn-info btn-sm">Guardar sesión</button>
+                <!-- Button to start a new empty session -->
+                <button id="newSessionBtn" class="btn btn-secondary btn-sm">Nueva sesión</button>
                 <!-- Removed redundant 'Sesiones guardadas' button -->
               </div>
             </div>
@@ -264,6 +269,26 @@
             <div class="card-body">
               <canvas id="categoryChart" style="height: 350px;"></canvas>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal for associating documents to an existing session -->
+    <div class="modal" id="associateSessionModal" style="display: none;">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Asociar a sesión guardada</h5>
+            <button type="button" class="btn-close" id="associateCloseBtn"></button>
+          </div>
+          <div class="modal-body">
+            <p>Selecciona la sesión a la que deseas asociar los documentos:</p>
+            <div id="associateSessionsList">Cargando sesiones...</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="associateCancelBtn">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="associateConfirmBtn">Asociar</button>
           </div>
         </div>
       </div>

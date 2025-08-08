@@ -40,6 +40,45 @@ function hideLoader() {
 const urlParams = new URLSearchParams(window.location.search);
 const sessionParam = urlParams.get('session');
 
+/**
+ * Display current session name in the documents header if sessionParam is present.
+ * Fetch session details from backend and set badge text.
+ */
+async function displayCurrentSession() {
+  if (!sessionParam) {
+    // Hide session labels if no session in query
+    const badge = document.getElementById('currentSessionBadge');
+    if (badge) badge.textContent = '';
+    const label = document.getElementById('currentSessionLabel');
+    if (label) {
+      label.style.display = 'none';
+      label.textContent = '';
+    }
+    return;
+  }
+  const badge = document.getElementById('currentSessionBadge');
+  const label = document.getElementById('currentSessionLabel');
+  try {
+    const userEmail = localStorage.getItem('userEmail') || '';
+    const res = await fetch(`${API_BASE_URL}/sessions/${sessionParam}`, {
+      headers: { 'X-User-Email': userEmail },
+    });
+    const data = await res.json();
+    const name = res.ok ? (data.name || `Sesión ${sessionParam}`) : `Sesión ${sessionParam}`;
+    if (badge) badge.textContent = name;
+    if (label) {
+      label.textContent = name;
+      label.style.display = 'inline-block';
+    }
+  } catch (err) {
+    if (badge) badge.textContent = `Sesión ${sessionParam}`;
+    if (label) {
+      label.textContent = `Sesión ${sessionParam}`;
+      label.style.display = 'inline-block';
+    }
+  }
+}
+
 // Global Chart.js styling to give a polished dashboard look similar to Tableau/Power BI
 Chart.defaults.font.family = 'Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif';
 Chart.defaults.color = '#343a40';
@@ -311,6 +350,8 @@ document.addEventListener("DOMContentLoaded", () => {
       window.location.href = '/login.html';
     });
   }
+  // Display current session name if applicable
+  displayCurrentSession();
   // Load suppliers and document types for filters
   loadSuppliers();
   loadDocTypes();
@@ -365,6 +406,14 @@ document.addEventListener("DOMContentLoaded", () => {
       alert(err.message);
     }
   });
+
+  // When viewing a saved session, disable destructive actions (delete all, purge)
+  if (sessionParam) {
+    const delBtn = document.getElementById('deleteAllBtn');
+    const purgeBtn = document.getElementById('purgeDuplicatesBtn');
+    if (delBtn) delBtn.style.display = 'none';
+    if (purgeBtn) purgeBtn.style.display = 'none';
+  }
   // Purge duplicate documents button
   document.getElementById('purgeDuplicatesBtn').addEventListener('click', async () => {
     if (!confirm('¿Deseas purgar los documentos duplicados? Esta acción eliminará documentos con el mismo proveedor, RUT, número de factura y artículos.')) return;
@@ -482,9 +531,50 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!res.ok) {
           throw new Error(data.error || 'Error al crear la sesión');
         }
-        // Hide modal by setting display none
+        // Hide creation modal
         modalEl.style.display = 'none';
-        alert('Sesión guardada correctamente');
+        // After saving session, offer to associate documents to another saved session via new modal
+        if (docIds.length > 0) {
+          // Populate associate modal with list of sessions
+          const assocModal = document.getElementById('associateSessionModal');
+          const listDiv = document.getElementById('associateSessionsList');
+          listDiv.innerHTML = 'Cargando sesiones...';
+          try {
+            const sessionsRes = await fetch(`${API_BASE_URL}/sessions`, {
+              headers: { 'X-User-Email': userEmail },
+            });
+            const sessionsData = await sessionsRes.json();
+            listDiv.innerHTML = '';
+            if (!sessionsRes.ok || !sessionsData.sessions) {
+              listDiv.textContent = 'No se pudieron cargar sesiones.';
+            } else {
+              sessionsData.sessions.forEach((sess) => {
+                // Skip newly created session (already saved) if same id? We don't have id here; we cannot know created session id because backend returns message; skip if necessary
+                const div = document.createElement('div');
+                div.classList.add('form-check');
+                const input = document.createElement('input');
+                input.type = 'radio';
+                input.name = 'associateSession';
+                input.classList.add('form-check-input');
+                input.id = `assoc-${sess.id}`;
+                input.value = sess.id;
+                const label = document.createElement('label');
+                label.classList.add('form-check-label');
+                label.htmlFor = input.id;
+                label.textContent = `${sess.name} (ID ${sess.id})`;
+                div.appendChild(input);
+                div.appendChild(label);
+                listDiv.appendChild(div);
+              });
+            }
+          } catch (err) {
+            listDiv.textContent = 'Error al cargar sesiones.';
+          }
+          // Show associate modal
+          assocModal.style.display = 'block';
+          // Store docIds on modal for later use
+          assocModal.dataset.docIds = JSON.stringify(docIds);
+        }
       } catch (err) {
         alert(err.message);
       }
@@ -499,6 +589,96 @@ document.addEventListener("DOMContentLoaded", () => {
     const hideModal = () => { sessionModalEl.style.display = 'none'; };
     if (cancelBtn) cancelBtn.addEventListener('click', hideModal);
     if (closeBtn) closeBtn.addEventListener('click', hideModal);
+  }
+
+  // New session button: opens modal with no documents preselected
+  const newSessionBtn = document.getElementById('newSessionBtn');
+  if (newSessionBtn) {
+    newSessionBtn.addEventListener('click', async () => {
+      const modalEl = document.getElementById('sessionModal');
+      modalEl.dataset.docIds = JSON.stringify([]);
+      // Clear previous name and load users list
+      document.getElementById('sessionName').value = '';
+      const list = document.getElementById('sessionUsersList');
+      list.innerHTML = '<div>Cargando usuarios...</div>';
+      try {
+        const userEmail = localStorage.getItem('userEmail') || '';
+        const res = await fetch(`${API_BASE_URL}/users`, { headers: { 'X-User-Email': userEmail } });
+        let data;
+        try { data = await res.json(); } catch (_) { data = {}; }
+        list.innerHTML = '';
+        if (!res.ok || !data.users) {
+          list.innerHTML = '<div>No se pudieron cargar usuarios.</div>';
+        } else {
+          data.users.forEach((u) => {
+            const div = document.createElement('div');
+            div.classList.add('form-check');
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.classList.add('form-check-input');
+            input.id = `sess-user-${u.id}`;
+            input.value = u.email;
+            if (u.email === userEmail) {
+              input.checked = true;
+              input.disabled = true;
+            }
+            const label = document.createElement('label');
+            label.classList.add('form-check-label');
+            label.htmlFor = input.id;
+            label.textContent = u.email;
+            div.appendChild(input);
+            div.appendChild(label);
+            list.appendChild(div);
+          });
+        }
+      } catch (err) {
+        list.innerHTML = '<div>Error al cargar usuarios.</div>';
+      }
+      modalEl.style.display = 'block';
+    });
+  }
+
+  // Associate session modal buttons
+  const assocModal = document.getElementById('associateSessionModal');
+  if (assocModal) {
+    const cancelAssoc = document.getElementById('associateCancelBtn');
+    const closeAssoc = document.getElementById('associateCloseBtn');
+    const confirmAssoc = document.getElementById('associateConfirmBtn');
+    const hideAssoc = () => { assocModal.style.display = 'none'; };
+    if (cancelAssoc) cancelAssoc.addEventListener('click', hideAssoc);
+    if (closeAssoc) closeAssoc.addEventListener('click', hideAssoc);
+    if (confirmAssoc) {
+      confirmAssoc.addEventListener('click', async () => {
+        // Determine selected session ID
+        const selected = document.querySelector('input[name="associateSession"]:checked');
+        if (!selected) {
+          alert('Selecciona una sesión a la cual asociar los documentos');
+          return;
+        }
+        const sessId = parseInt(selected.value, 10);
+        const docsStr = assocModal.dataset.docIds || '[]';
+        let docIds;
+        try { docIds = JSON.parse(docsStr); } catch (_) { docIds = []; }
+        const userEmail = localStorage.getItem('userEmail') || '';
+        try {
+          const res = await fetch(`${API_BASE_URL}/sessions/${sessId}/add_documents`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-User-Email': userEmail,
+            },
+            body: JSON.stringify({ document_ids: docIds }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Error al asociar a sesión');
+          alert(data.message || 'Documentos asociados a la sesión');
+        } catch (err) {
+          alert(err.message);
+        } finally {
+          hideAssoc();
+        }
+      });
+    }
   }
   // Export products summary to Excel
   document.getElementById("exportProductsBtn").addEventListener("click", async () => {
