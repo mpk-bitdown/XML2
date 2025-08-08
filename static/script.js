@@ -20,6 +20,12 @@ let itemsPerPage = 5;
 // State for sorting documents table. Stores last sorted column index and direction.
 let docSortState = { column: -1, ascending: true };
 
+// Session parameter from query string.  If present, documents are loaded
+// from the corresponding session instead of global filters.  This allows
+// viewing a saved session of documents.  We parse it once on load.
+const urlParams = new URLSearchParams(window.location.search);
+const sessionParam = urlParams.get('session');
+
 // Global Chart.js styling to give a polished dashboard look similar to Tableau/Power BI
 Chart.defaults.font.family = 'Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif';
 Chart.defaults.color = '#343a40';
@@ -362,6 +368,121 @@ document.addEventListener("DOMContentLoaded", () => {
       alert(err.message);
     }
   });
+
+  // Save session button opens modal and loads users
+  const saveSessionBtn = document.getElementById('saveSessionBtn');
+  if (saveSessionBtn) {
+    saveSessionBtn.addEventListener('click', async () => {
+      // Determine document IDs to include: selected checkboxes or all loaded
+      const checked = Array.from(document.querySelectorAll('.select-checkbox:checked'));
+      let docIds;
+      if (checked.length > 0) {
+        docIds = checked.map((cb) => parseInt(cb.value));
+      } else {
+        docIds = allDocuments.map((d) => d.id);
+      }
+      // Store ids on modal element for later use
+      // Store selected document IDs in data attribute of modal
+      const modalEl = document.getElementById('sessionModal');
+      modalEl.dataset.docIds = JSON.stringify(docIds);
+      // Clear previous selections
+      document.getElementById('sessionName').value = '';
+      const list = document.getElementById('sessionUsersList');
+      list.innerHTML = '<div>Cargando usuarios...</div>';
+      try {
+        // Only admin can list all users; but we call anyway and filter out current user if necessary
+        const userEmail = localStorage.getItem('userEmail') || '';
+        const isAdmin = localStorage.getItem('isAdmin') === 'true';
+        const res = await fetch(`${API_BASE_URL}/users`, { headers: { 'X-User-Email': userEmail } });
+        let data;
+        try { data = await res.json(); } catch (_) { data = {}; }
+        list.innerHTML = '';
+        if (!res.ok || !data.users) {
+          list.innerHTML = '<div>No se pudieron cargar usuarios.</div>';
+        } else {
+          data.users.forEach((u) => {
+            // Skip admin if not current
+            const div = document.createElement('div');
+            div.classList.add('form-check');
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.classList.add('form-check-input');
+            input.id = `sess-user-${u.id}`;
+            input.value = u.email;
+            // Pre-check current user and disable so cannot be deselected
+            if (u.email === userEmail) {
+              input.checked = true;
+              input.disabled = true;
+            }
+            const label = document.createElement('label');
+            label.classList.add('form-check-label');
+            label.htmlFor = input.id;
+            label.textContent = u.email;
+            div.appendChild(input);
+            div.appendChild(label);
+            list.appendChild(div);
+          });
+        }
+      } catch (err) {
+        list.innerHTML = '<div>Error al cargar usuarios.</div>';
+      }
+      // Show modal by setting display style
+      modalEl.style.display = 'block';
+    });
+  }
+
+  // View sessions button navigates to sessions page
+  const viewSessionsBtn = document.getElementById('viewSessionsBtn');
+  if (viewSessionsBtn) {
+    viewSessionsBtn.addEventListener('click', () => {
+      window.location.href = '/sessions.html';
+    });
+  }
+
+  // Modal save button to create session
+  const sessionModalSaveBtn = document.getElementById('sessionModalSaveBtn');
+  if (sessionModalSaveBtn) {
+    sessionModalSaveBtn.addEventListener('click', async () => {
+      const modalEl = document.getElementById('sessionModal');
+      const docIdsStr = modalEl.dataset.docIds || '[]';
+      let docIds;
+      try { docIds = JSON.parse(docIdsStr); } catch (_) { docIds = []; }
+      const name = document.getElementById('sessionName').value.trim();
+      // Gather selected user emails
+      const checkboxes = Array.from(document.querySelectorAll('#sessionUsersList input[type=checkbox]'));
+      const userEmails = checkboxes.filter((cb) => cb.checked && !cb.disabled).map((cb) => cb.value);
+      const userEmail = localStorage.getItem('userEmail') || '';
+      try {
+        const res = await fetch(`${API_BASE_URL}/sessions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Email': userEmail,
+          },
+          body: JSON.stringify({ name, document_ids: docIds, user_emails: userEmails }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Error al crear la sesión');
+        }
+        // Hide modal by setting display none
+        modalEl.style.display = 'none';
+        alert('Sesión guardada correctamente');
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+
+  // Hide session modal on cancel or close
+  const sessionModalEl = document.getElementById('sessionModal');
+  if (sessionModalEl) {
+    const cancelBtn = sessionModalEl.querySelector('.btn-secondary');
+    const closeBtn = sessionModalEl.querySelector('.btn-close');
+    const hideModal = () => { sessionModalEl.style.display = 'none'; };
+    if (cancelBtn) cancelBtn.addEventListener('click', hideModal);
+    if (closeBtn) closeBtn.addEventListener('click', hideModal);
+  }
   // Export products summary to Excel
   document.getElementById("exportProductsBtn").addEventListener("click", async () => {
     try {
@@ -501,6 +622,21 @@ document.addEventListener("DOMContentLoaded", () => {
  */
 async function loadDocuments() {
   try {
+    // If viewing a saved session, fetch documents from the session endpoint
+    if (sessionParam) {
+      const userEmail = localStorage.getItem('userEmail') || '';
+      const response = await fetch(`${API_BASE_URL}/sessions/${sessionParam}/documents`, {
+        headers: { 'X-User-Email': userEmail },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al obtener documentos de la sesión');
+      }
+      allDocuments = data.documents || [];
+      currentPage = 1;
+      renderDocumentsPage();
+      return;
+    }
     // Build query based on global filters
     const start = document.getElementById("startMonth").value;
     const end = document.getElementById("endMonth").value;

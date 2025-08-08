@@ -170,6 +170,64 @@ class User(db.Model):
 
 
 # ---------------------------------------------------------------------------
+# Session and category models
+
+class Session(db.Model):
+    """
+    Represents a grouping of documents that can be shared with specific users.
+
+    Each session has a name, a creator (user) and a creation timestamp.  The
+    relationship to documents and users is maintained via the SessionDocument
+    and SessionUser association tables.
+    """
+
+    __tablename__ = "sessions"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.relationship("User", backref="created_sessions")
+
+
+class SessionDocument(db.Model):
+    """
+    Association table linking sessions with documents.  Each entry references
+    a session and a document.  Deleting a session will cascade to delete
+    associated SessionDocument entries.
+    """
+
+    __tablename__ = "session_documents"
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+
+
+class SessionUser(db.Model):
+    """
+    Association table linking sessions with users who have access to view the
+    documents in that session.  A session can be shared with multiple users.
+    """
+
+    __tablename__ = "session_users"
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+
+
+class ManualCategory(db.Model):
+    """
+    Stores a manual category assignment for a product name.  When a product has
+    a manual category defined, it overrides the heuristic classification.  The
+    product_name column is unique to avoid duplicates.
+    """
+
+    __tablename__ = "manual_categories"
+    id = db.Column(db.Integer, primary_key=True)
+    product_name = db.Column(db.String(255), unique=True, nullable=False)
+    category = db.Column(db.String(255), nullable=False)
+
+
+# ---------------------------------------------------------------------------
 # Utility functions
 def create_tables() -> None:
     """Create database tables at start up if they do not already exist.
@@ -234,6 +292,21 @@ def serve_login_page() -> Any:
 def serve_users_page() -> Any:
     """Serve the admin users management page."""
     return app.send_static_file("users.html")
+
+
+# Serve sessions and categories pages
+@app.route("/sessions")
+@app.route("/sessions.html")
+def serve_sessions_page() -> Any:
+    """Serve the sessions management page for viewing saved document sessions."""
+    return app.send_static_file("sessions.html")
+
+
+@app.route("/categories")
+@app.route("/categories.html")
+def serve_categories_page() -> Any:
+    """Serve the categories AI page."""
+    return app.send_static_file("categories.html")
 
 
 @app.route("/api/documents", methods=["GET"])
@@ -492,60 +565,88 @@ def download_document(doc_id: int) -> Any:
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
+    # Title
     pdf.set_font("Arial", style="B", size=16)
     pdf.cell(0, 10, "Resumen de Factura", ln=True)
-    pdf.ln(5)
-    pdf.set_font("Arial", style="B", size=12)
-    pdf.cell(40, 8, "Proveedor:")
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 8, doc.supplier.name if doc.supplier else "-", ln=True)
-    pdf.set_font("Arial", style="B", size=12)
-    pdf.cell(40, 8, "RUT:")
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 8, doc.supplier.rut if doc.supplier else "-", ln=True)
-    pdf.set_font("Arial", style="B", size=12)
-    pdf.cell(40, 8, "Fecha factura:")
-    pdf.set_font("Arial", size=12)
-    if doc.doc_date:
-        pdf.cell(0, 8, doc.doc_date.strftime("%d/%m/%Y"), ln=True)
-    else:
-        pdf.cell(0, 8, "-", ln=True)
-    pdf.ln(5)
+    pdf.ln(3)
+    # Supplier and invoice info
     pdf.set_font("Arial", style="B", size=11)
-    pdf.cell(80, 8, "Producto", border=1)
-    pdf.cell(30, 8, "Cantidad", border=1, align="R")
-    pdf.cell(30, 8, "Precio", border=1, align="R")
-    pdf.cell(40, 8, "Subtotal", border=1, align="R")
+    pdf.cell(40, 7, "Proveedor:")
+    pdf.set_font("Arial", size=11)
+    pdf.cell(0, 7, doc.supplier.name if doc.supplier else "-", ln=True)
+    pdf.set_font("Arial", style="B", size=11)
+    pdf.cell(40, 7, "RUT:")
+    pdf.set_font("Arial", size=11)
+    pdf.cell(0, 7, doc.supplier.rut if doc.supplier else "-", ln=True)
+    pdf.set_font("Arial", style="B", size=11)
+    pdf.cell(40, 7, "Número factura:")
+    pdf.set_font("Arial", size=11)
+    pdf.cell(0, 7, doc.invoice_number if doc.invoice_number else "-", ln=True)
+    pdf.set_font("Arial", style="B", size=11)
+    pdf.cell(40, 7, "Fecha factura:")
+    pdf.set_font("Arial", size=11)
+    if doc.doc_date:
+        pdf.cell(0, 7, doc.doc_date.strftime("%d/%m/%Y"), ln=True)
+    else:
+        pdf.cell(0, 7, "-", ln=True)
+    pdf.ln(4)
+    # Table headers: Producto, Cantidad, Precio Neto, Precio c/IVA, Subtotal Neto, Subtotal c/IVA
+    pdf.set_font("Arial", style="B", size=10)
+    pdf.cell(60, 7, "Producto", border=1)
+    pdf.cell(20, 7, "Cant.", border=1, align="R")
+    pdf.cell(25, 7, "P. Neto", border=1, align="R")
+    pdf.cell(30, 7, "P. c/IVA", border=1, align="R")
+    pdf.cell(25, 7, "Sub. Neto", border=1, align="R")
+    pdf.cell(30, 7, "Sub. c/IVA", border=1, align="R")
     pdf.ln()
-    pdf.set_font("Arial", size=10)
+    pdf.set_font("Arial", size=9)
     total_neto = 0.0
+    total_con_iva = 0.0
     for item in doc.items:
         qty = item.quantity or 0
-        price = item.price or 0
-        subtotal = item.total if item.total is not None else qty * price
-        total_neto += subtotal or 0
-        pdf.cell(80, 7, str(item.name), border=1)
-        pdf.cell(30, 7, f"{qty:.2f}" if qty else "-", border=1, align="R")
-        pdf.cell(30, 7, f"{price:,.0f}" if price else "-", border=1, align="R")
-        pdf.cell(40, 7, f"{subtotal:,.0f}" if subtotal else "-", border=1, align="R")
+        price_neto = item.price or 0
+        subtotal_neto = item.total if item.total is not None else qty * price_neto
+        price_con_iva = price_neto * 1.19 if price_neto else 0
+        subtotal_con_iva = subtotal_neto * 1.19 if subtotal_neto else 0
+        total_neto += subtotal_neto or 0
+        total_con_iva += subtotal_con_iva or 0
+        pdf.cell(60, 6, str(item.name)[:40], border=1)
+        pdf.cell(20, 6, f"{qty:.2f}" if qty else "-", border=1, align="R")
+        pdf.cell(25, 6, f"{price_neto:,.0f}" if price_neto else "-", border=1, align="R")
+        pdf.cell(30, 6, f"{price_con_iva:,.0f}" if price_con_iva else "-", border=1, align="R")
+        pdf.cell(25, 6, f"{subtotal_neto:,.0f}" if subtotal_neto else "-", border=1, align="R")
+        pdf.cell(30, 6, f"{subtotal_con_iva:,.0f}" if subtotal_con_iva else "-", border=1, align="R")
         pdf.ln()
     pdf.ln(3)
-    pdf.set_font("Arial", style="B", size=12)
-    pdf.cell(80, 8, "Total neto:")
-    pdf.set_font("Arial", size=12)
-    pdf.cell(40, 8, f"{total_neto:,.0f}", align="R")
+    # Totals section
+    iva_amount = total_neto * 0.19
+    total_bruto = total_neto + iva_amount
+    pdf.set_font("Arial", style="B", size=11)
+    pdf.cell(100, 7, "Total neto:")
+    pdf.set_font("Arial", size=11)
+    pdf.cell(40, 7, f"{total_neto:,.0f}", align="R")
     pdf.ln()
-    invoice_total = doc.as_dict().get("invoice_total", 0)
-    pdf.set_font("Arial", style="B", size=12)
-    pdf.cell(80, 8, "Total factura:")
-    pdf.set_font("Arial", size=12)
-    pdf.cell(40, 8, f"{invoice_total:,.0f}", align="R")
+    pdf.set_font("Arial", style="B", size=11)
+    pdf.cell(100, 7, "IVA (19%):")
+    pdf.set_font("Arial", size=11)
+    pdf.cell(40, 7, f"{iva_amount:,.0f}", align="R")
+    pdf.ln()
+    pdf.set_font("Arial", style="B", size=11)
+    pdf.cell(100, 7, "Total c/IVA:")
+    pdf.set_font("Arial", size=11)
+    pdf.cell(40, 7, f"{total_bruto:,.0f}", align="R")
+    pdf.ln()
+    # Output PDF to bytes
     pdf_data = pdf.output(dest="S")
     if isinstance(pdf_data, (bytes, bytearray)):
         pdf_bytes = bytes(pdf_data)
     else:
         pdf_bytes = pdf_data.encode("latin1")
-    filename = f"factura_resumen_{doc.id}.pdf"
+    # Build filename using invoice number and supplier name if available
+    supplier_name = (doc.supplier.name if doc.supplier else "").strip().replace(" ", "_")
+    invoice_no = (doc.invoice_number or f"{doc.id}").strip().replace(" ", "_")
+    safe_name = f"{invoice_no}_{supplier_name}" if supplier_name else f"{invoice_no}"
+    filename = f"{safe_name}.pdf"
     return Response(pdf_bytes, headers={
         "Content-Type": "application/pdf",
         "Content-Disposition": f"attachment; filename={filename}"
@@ -823,8 +924,15 @@ def categories_analytics() -> tuple[Dict[str, Any], int]:
                 if any_match:
                     filtered.append((prod, total_qty, total_value))
             rows = filtered
+    # Preload manual category assignments once to avoid repeated queries
+    manual_map = {mc.product_name.lower(): mc.category for mc in ManualCategory.query.all()}
+
     def classify(name: str) -> str:
+        """Classify a product into a category using manual assignments or heuristics."""
         lower = name.lower()
+        # Check manual override first
+        if lower in manual_map:
+            return manual_map[lower]
         categories_keywords = [
             ("Carnes", ["carne", "pollo", "vacuno", "res", "cerdo", "cordero", "jamón", "tocino", "salchicha"]),
             ("Pescados y Mariscos", ["pescado", "marisco", "atún", "salmón", "camaron", "merluza", "ostión", "chorito"]),
@@ -1226,6 +1334,331 @@ def get_ai_insights() -> Any:
     projections.  In a real deployment this could call an external service.
     """
     return {"suggestions": [], "projections": {}}, 200
+
+
+# ---------------------------------------------------------------------------
+# Session management endpoints
+
+@app.route("/api/sessions", methods=["GET", "POST"])
+def sessions_api() -> Any:
+    """
+    Handle listing and creation of document sessions.
+
+    * GET: returns a list of sessions accessible to the current user.  Each
+      session includes its id, name, creation timestamp, creator email,
+      document ids and user emails.  The current user's email must be
+      provided in the ``X-User-Email`` header.  Sessions where the
+      user is the creator or is explicitly shared with appear in the list.
+
+    * POST: create a new session.  JSON body must include ``document_ids``
+      (list of integers) and optional ``name`` and ``user_emails`` (list of
+      strings).  If ``name`` is omitted a default name is used.  The
+      current user (from ``X-User-Email``) becomes the creator and gains
+      access automatically.  Selected users are granted access via the
+      ``SessionUser`` table.  Returns the created session's id and name.
+    """
+    current_email = request.headers.get("X-User-Email") or ""
+    current_user = User.query.filter_by(email=current_email).first()
+    if not current_user:
+        return {"error": "Usuario no autenticado"}, 401
+    if request.method == "GET":
+        # Build a list of session ids accessible to this user
+        # Sessions created by user
+        created_ids = [s.id for s in Session.query.filter_by(created_by_id=current_user.id).all()]
+        # Sessions shared with user
+        shared_ids = [su.session_id for su in SessionUser.query.filter_by(user_id=current_user.id).all()]
+        sess_ids = set(created_ids + shared_ids)
+        sessions = Session.query.filter(Session.id.in_(sess_ids)).order_by(Session.created_at.desc()).all()
+        result = []
+        for sess in sessions:
+            doc_ids = [sd.document_id for sd in SessionDocument.query.filter_by(session_id=sess.id).all()]
+            user_ids = [su.user_id for su in SessionUser.query.filter_by(session_id=sess.id).all()]
+            user_emails = [u.email for u in User.query.filter(User.id.in_(user_ids)).all()]
+            # Include creator email if not in list
+            creator = User.query.get(sess.created_by_id)
+            creator_email = creator.email if creator else None
+            result.append({
+                "id": sess.id,
+                "name": sess.name,
+                "created_at": sess.created_at.isoformat(),
+                "created_by": creator_email,
+                "document_ids": doc_ids,
+                "user_emails": user_emails,
+            })
+        return {"sessions": result}, 200
+    # POST
+    data = request.get_json(silent=True) or {}
+    document_ids = data.get("document_ids") or []
+    if not isinstance(document_ids, list) or not document_ids:
+        return {"error": "Se requieren los IDs de los documentos para crear una sesión"}, 400
+    # Resolve documents and ensure they exist
+    documents = Document.query.filter(Document.id.in_(document_ids)).all()
+    if not documents:
+        return {"error": "No se encontraron documentos válidos"}, 400
+    name = (data.get("name") or "").strip()
+    if not name:
+        name = f"Sesión {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+    user_emails = data.get("user_emails") or []
+    # Create session
+    session_obj = Session(name=name, created_by_id=current_user.id)
+    db.session.add(session_obj)
+    db.session.flush()  # obtain session id
+    # Link documents to session
+    for doc in documents:
+        db.session.add(SessionDocument(session_id=session_obj.id, document_id=doc.id))
+    # Always include creator in access list
+    user_ids = []
+    for email in user_emails:
+        u = User.query.filter_by(email=email).first()
+        if u:
+            user_ids.append(u.id)
+    if current_user.id not in user_ids:
+        user_ids.append(current_user.id)
+    for uid in set(user_ids):
+        db.session.add(SessionUser(session_id=session_obj.id, user_id=uid))
+    db.session.commit()
+    return {"id": session_obj.id, "name": session_obj.name}, 201
+
+
+@app.route("/api/sessions/<int:sess_id>", methods=["DELETE"])
+def delete_session(sess_id: int) -> Any:
+    """
+    Delete a session and its associations.  Only the creator of the session
+    or an admin user can delete a session.  The current user's email must
+    be provided via the ``X-User-Email`` header.
+    """
+    current_email = request.headers.get("X-User-Email") or ""
+    current_user = User.query.filter_by(email=current_email).first()
+    if not current_user:
+        return {"error": "Usuario no autenticado"}, 401
+    sess = Session.query.get(sess_id)
+    if not sess:
+        return {"error": "Sesión no encontrada"}, 404
+    if not (current_user.is_admin or current_user.id == sess.created_by_id):
+        return {"error": "No autorizado"}, 403
+    # Delete session along with associated entries (cascade defined in model)
+    # Remove explicit SessionDocument and SessionUser rows
+    SessionDocument.query.filter_by(session_id=sess.id).delete()
+    SessionUser.query.filter_by(session_id=sess.id).delete()
+    db.session.delete(sess)
+    db.session.commit()
+    return {"message": "Sesión eliminada"}, 200
+
+
+@app.route("/api/sessions/<int:sess_id>/documents", methods=["GET"])
+def get_session_documents(sess_id: int) -> Any:
+    """
+    Return the list of documents belonging to a given session, provided the
+    current user has access.  Document metadata is returned via the
+    existing ``as_dict`` method.  The current user's email must be
+    provided in the ``X-User-Email`` header.
+    """
+    current_email = request.headers.get("X-User-Email") or ""
+    current_user = User.query.filter_by(email=current_email).first()
+    if not current_user:
+        return {"error": "Usuario no autenticado"}, 401
+    sess = Session.query.get(sess_id)
+    if not sess:
+        return {"error": "Sesión no encontrada"}, 404
+    # Check access: creator or in SessionUser
+    access_ids = [su.user_id for su in SessionUser.query.filter_by(session_id=sess_id).all()]
+    if not (current_user.is_admin or current_user.id == sess.created_by_id or current_user.id in access_ids):
+        return {"error": "No autorizado"}, 403
+    doc_ids = [sd.document_id for sd in SessionDocument.query.filter_by(session_id=sess.id).all()]
+    docs = Document.query.filter(Document.id.in_(doc_ids)).all()
+    return {"documents": [d.as_dict() for d in docs]}, 200
+
+
+# ---------------------------------------------------------------------------
+# Manual categories endpoints
+
+@app.route("/api/manual_categories", methods=["GET", "POST"])
+def manual_categories_api() -> Any:
+    """
+    List or update manual category assignments for products.
+
+    * GET: returns all manual categories as a list of objects {product_name, category}.
+    * POST: upsert a manual category.  JSON body must include ``product_name``
+      and ``category``.  If a record for the product exists, it will be
+      updated; otherwise a new record is created.  Returns the upserted
+      record.
+    """
+    if request.method == "GET":
+        recs = ManualCategory.query.all()
+        return {"manual_categories": [
+            {"product_name": mc.product_name, "category": mc.category}
+            for mc in recs
+        ]}, 200
+    # POST
+    data = request.get_json(silent=True) or {}
+    product_name = (data.get("product_name") or "").strip()
+    category = (data.get("category") or "").strip()
+    if not product_name or not category:
+        return {"error": "Se requieren product_name y category"}, 400
+    mc = ManualCategory.query.filter_by(product_name=product_name).first()
+    if mc:
+        mc.category = category
+    else:
+        mc = ManualCategory(product_name=product_name, category=category)
+        db.session.add(mc)
+    db.session.commit()
+    return {"product_name": mc.product_name, "category": mc.category}, 200
+
+
+@app.route("/api/manual_categories/<string:product_name>", methods=["DELETE"])
+def delete_manual_category(product_name: str) -> Any:
+    """
+    Delete a manual category assignment for a given product name.
+    """
+    mc = ManualCategory.query.filter_by(product_name=product_name).first()
+    if not mc:
+        return {"error": "Categoría manual no encontrada"}, 404
+    db.session.delete(mc)
+    db.session.commit()
+    return {"message": "Categoría manual eliminada"}, 200
+
+
+# ---------------------------------------------------------------------------
+# Product categorization endpoints
+
+@app.route("/api/products/categorization", methods=["GET"])
+def product_categorization() -> Any:
+    """
+    Compute and return lists of categorized and uncategorized products based on
+    total quantities and values.  Manual category assignments override
+    heuristic classification.  Response format:
+
+        {
+          "categorized": [ {"product_name": str, "total_qty": float,
+                               "total_value": float, "category": str, "manual": bool}, ... ],
+          "uncategorized": [ ... ]
+        }
+    """
+    # Aggregate quantities and values per product
+    rows = (
+        db.session.query(
+            Item.name.label("product_name"),
+            db.func.sum(Item.quantity).label("total_qty"),
+            db.func.sum(Item.quantity * Item.price).label("total_value"),
+        )
+        .join(Document, Document.id == Item.document_id)
+        .group_by(Item.name)
+        .all()
+    )
+    # Build manual category lookup
+    manual_map = {mc.product_name.lower(): mc.category for mc in ManualCategory.query.all()}
+    # Classification function (reuse heuristics from categories_analytics)
+    def classify(name: str) -> str:
+        lower = name.lower()
+        if lower in manual_map:
+            return manual_map[lower]
+        categories_keywords = [
+            ("Carnes", ["carne", "pollo", "vacuno", "res", "cerdo", "cordero", "jamón", "tocino", "salchicha"]),
+            ("Pescados y Mariscos", ["pescado", "marisco", "atún", "salmón", "camaron", "merluza", "ostión", "chorito"]),
+            ("Lácteos", ["queso", "leche", "yogur", "mantequilla", "crema", "manjar", "helado"]),
+            ("Frutas", ["manzana", "plátano", "banana", "pera", "uva", "fresa", "frutilla", "mora", "fruta", "kiwi", "naranja", "melón", "durazno", "sandía", "piña"]),
+            ("Verduras", ["tomate", "cebolla", "lechuga", "zanahoria", "papa", "verdura", "champiñón", "brocoli", "pimiento", "col", "espinaca", "berenjena", "zapallo", "pepino", "ajo"]),
+            ("Panadería y Pastelería", ["pan", "bolleria", "bollería", "croissant", "baguette", "empanada", "empanada de horno", "torta", "pastel", "gallet", "postre", "queque"]),
+            ("Snacks y Dulces", ["snack", "galleta", "chocolate", "dulce", "caramelo", "barra", "papas fritas", "chips", "maní", "nueces", "almendra"]),
+            ("Cereales y Granos", ["arroz", "frijol", "lenteja", "poroto", "garbanzo", "cereal", "avena"]),
+            ("Pastas y Harinas", ["pasta", "fideo", "harina", "spaghetti", "macarrón", "macarrones"]),
+            ("Aceites y Condimentos", ["aceite", "sal", "azúcar", "especia", "condimento", "salsa", "aderezo", "vinagre", "mayonesa", "ketchup", "mostaza"]),
+            ("Bebidas Alcohólicas", ["vino", "cerveza", "pisco", "ron", "whisky", "vodka", "licor", "champaña"]),
+            ("Bebidas no Alcohólicas", ["agua", "soda", "jugo", "refresco", "gaseosa", "cola", "coca", "pepsi", "té", "café"]),
+            ("Aseo y Limpieza", ["jabón", "detergente", "cloro", "limpiador", "desinfectante", "escoba", "esponja", "lavaloza", "trapeador"]),
+            ("Higiene Personal", ["shampoo", "champú", "crema dental", "cepillo", "desodorante", "pañal", "toalla higiénica", "afeitar", "jabón corporal"]),
+            ("Mascotas", ["perro", "gato", "mascota", "alimento para perros", "alimento para gatos", "arena sanitaria", "hueso"]),
+            ("Bebé", ["leche infantil", "pañal", "bebé", "mamadera", "toallita húmeda"]),
+            ("Congelados", ["congelado", "helado", "hielo", "frozen", "sorbete"]),
+            ("Electrónicos y Tecnología", ["cable", "usb", "teléfono", "celular", "computador", "laptop", "batería", "cargador", "audífono"]),
+            ("Herramientas y Ferretería", ["clavo", "martillo", "serrucho", "tornillo", "destornillador", "llave", "taladro", "alicate"]),
+            ("Oficina y Papelería", ["cuaderno", "lápiz", "papel", "bolígrafo", "carpeta", "notebook", "impresora", "tinta"]),
+            ("Otros", []),
+        ]
+        for category, keywords in categories_keywords[:-1]:
+            for kw in keywords:
+                if kw in lower:
+                    return category
+        return "Otros"
+    categorized = []
+    uncategorized = []
+    for name, qty, val in rows:
+        cat = classify(name)
+        manual = name.lower() in manual_map
+        rec = {
+            "product_name": name,
+            "total_qty": float(qty or 0),
+            "total_value": float(val or 0),
+            "category": cat,
+            "manual": manual,
+        }
+        if cat == "Otros" and not manual:
+            uncategorized.append(rec)
+        else:
+            categorized.append(rec)
+    return {"categorized": categorized, "uncategorized": uncategorized}, 200
+
+
+@app.route("/api/products/categorization/apply_ml", methods=["POST"])
+def apply_ml_categorization() -> Any:
+    """
+    Apply a simple machine learning (heuristic) classification to assign
+    categories to uncategorized products.  For each product without a
+    manual category assignment, we compute a heuristic category.  If the
+    resulting category is not "Otros", we create a ManualCategory record.
+    Returns the number of products updated.
+    """
+    # Build manual map to know which products already have manual category
+    manual_map = {mc.product_name.lower(): mc.category for mc in ManualCategory.query.all()}
+    # Aggregate products
+    product_names = [name for (name,) in db.session.query(Item.name).distinct().all()]
+    updated = 0
+    def heuristic(name: str) -> str:
+        lower = name.lower()
+        categories_keywords = [
+            ("Carnes", ["carne", "pollo", "vacuno", "res", "cerdo", "cordero", "jamón", "tocino", "salchicha"]),
+            ("Pescados y Mariscos", ["pescado", "marisco", "atún", "salmón", "camaron", "merluza", "ostión", "chorito"]),
+            ("Lácteos", ["queso", "leche", "yogur", "mantequilla", "crema", "manjar", "helado"]),
+            ("Frutas", ["manzana", "plátano", "banana", "pera", "uva", "fresa", "frutilla", "mora", "fruta", "kiwi", "naranja", "melón", "durazno", "sandía", "piña"]),
+            ("Verduras", ["tomate", "cebolla", "lechuga", "zanahoria", "papa", "verdura", "champiñón", "brocoli", "pimiento", "col", "espinaca", "berenjena", "zapallo", "pepino", "ajo"]),
+            ("Panadería y Pastelería", ["pan", "bolleria", "bollería", "croissant", "baguette", "empanada", "empanada de horno", "torta", "pastel", "gallet", "postre", "queque"]),
+            ("Snacks y Dulces", ["snack", "galleta", "chocolate", "dulce", "caramelo", "barra", "papas fritas", "chips", "maní", "nueces", "almendra"]),
+            ("Cereales y Granos", ["arroz", "frijol", "lenteja", "poroto", "garbanzo", "cereal", "avena"]),
+            ("Pastas y Harinas", ["pasta", "fideo", "harina", "spaghetti", "macarrón", "macarrones"]),
+            ("Aceites y Condimentos", ["aceite", "sal", "azúcar", "especia", "condimento", "salsa", "aderezo", "vinagre", "mayonesa", "ketchup", "mostaza"]),
+            ("Bebidas Alcohólicas", ["vino", "cerveza", "pisco", "ron", "whisky", "vodka", "licor", "champaña"]),
+            ("Bebidas no Alcohólicas", ["agua", "soda", "jugo", "refresco", "gaseosa", "cola", "coca", "pepsi", "té", "café"]),
+            ("Aseo y Limpieza", ["jabón", "detergente", "cloro", "limpiador", "desinfectante", "escoba", "esponja", "lavaloza", "trapeador"]),
+            ("Higiene Personal", ["shampoo", "champú", "crema dental", "cepillo", "desodorante", "pañal", "toalla higiénica", "afeitar", "jabón corporal"]),
+            ("Mascotas", ["perro", "gato", "mascota", "alimento para perros", "alimento para gatos", "arena sanitaria", "hueso"]),
+            ("Bebé", ["leche infantil", "pañal", "bebé", "mamadera", "toallita húmeda"]),
+            ("Congelados", ["congelado", "helado", "hielo", "frozen", "sorbete"]),
+            ("Electrónicos y Tecnología", ["cable", "usb", "teléfono", "celular", "computador", "laptop", "batería", "cargador", "audífono"]),
+            ("Herramientas y Ferretería", ["clavo", "martillo", "serrucho", "tornillo", "destornillador", "llave", "taladro", "alicate"]),
+            ("Oficina y Papelería", ["cuaderno", "lápiz", "papel", "bolígrafo", "carpeta", "notebook", "impresora", "tinta"]),
+            ("Otros", []),
+        ]
+        for category, keywords in categories_keywords[:-1]:
+            for kw in keywords:
+                if kw in lower:
+                    return category
+        return "Otros"
+    for name in product_names:
+        lower = name.lower()
+        if lower in manual_map:
+            continue  # skip products that already have manual category
+        cat = heuristic(name)
+        if cat and cat != "Otros":
+            # Create or update manual category
+            mc = ManualCategory.query.filter_by(product_name=name).first()
+            if mc:
+                mc.category = cat
+            else:
+                db.session.add(ManualCategory(product_name=name, category=cat))
+            updated += 1
+    if updated > 0:
+        db.session.commit()
+    return {"updated": updated}, 200
 
 
 # ---------------------------------------------------------------------------

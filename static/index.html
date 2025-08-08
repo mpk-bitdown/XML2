@@ -47,6 +47,10 @@
           <span id="navUserEmail" class="text-white fw-semibold"></span>
           <!-- Link to admin user management (only visible for admins) -->
           <a id="navUsersLink" href="/users.html" class="btn btn-outline-light btn-sm" style="display: none;">Usuarios</a>
+          <!-- Link to sessions page (visible to all users) -->
+          <a id="navSessionsLink" href="/sessions.html" class="btn btn-outline-light btn-sm">Sesiones</a>
+          <!-- Link to categories AI page (visible to all users) -->
+          <a id="navCategoriesLink" href="/categories.html" class="btn btn-outline-light btn-sm">Categorías AI</a>
           <button id="logoutBtn" class="btn btn-outline-light btn-sm" type="button" style="display: none;">Cerrar sesión</button>
         </div>
       </div>
@@ -127,6 +131,10 @@
                 <button id="deleteAllBtn" class="btn btn-danger btn-sm">Borrar todo</button>
                 <button id="purgeDuplicatesBtn" class="btn btn-warning btn-sm">Purgar duplicados</button>
                 <button id="exportCsvBtn" class="btn btn-outline-light btn-sm">Descargar CSV</button>
+                <!-- Button to save current documents as a session -->
+                <button id="saveSessionBtn" class="btn btn-info btn-sm">Guardar sesión</button>
+                <!-- Button to navigate to saved sessions -->
+                <button id="viewSessionsBtn" class="btn btn-secondary btn-sm">Sesiones guardadas</button>
               </div>
             </div>
             <div class="table-responsive">
@@ -184,6 +192,32 @@
                   <option value="bar">Barras</option>
                 </select>
               </div>
+
+      <!-- Session modal (for saving document sessions) -->
+      <div class="modal fade" id="sessionModal" tabindex="-1" aria-labelledby="sessionModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="sessionModalLabel">Guardar sesión</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-3">
+                <label for="sessionName" class="form-label">Nombre de la sesión</label>
+                <input type="text" id="sessionName" class="form-control" placeholder="Opcional" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Compartir con usuarios:</label>
+                <div id="sessionUsersList" class="border p-2" style="max-height: 200px; overflow: auto;"></div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-primary" id="sessionModalSaveBtn">Guardar</button>
+            </div>
+          </div>
+        </div>
+      </div>
               <!-- Metric selector for product summary -->
               <div class="d-flex align-items-center me-3">
                 <label for="productMetricSelect" class="me-2 mb-0">Métrica:</label>
