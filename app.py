@@ -223,6 +223,7 @@ def serve_frontend() -> Any:
 
 # Additional routes to serve login and user management pages
 @app.route("/login")
+@app.route("/login.html")
 def serve_login_page() -> Any:
     """Serve the login page."""
     return app.send_static_file("login.html")
