@@ -1,0 +1,15 @@
+# Byte‑code files
+__pycache__/
+*.py[cod]
+
+# SQLite database
+documents.db
+
+# Uploaded files and generated PDFs
+uploads/
+
+# Virtual environment
+venv/
+
+# OS metadata
+.DS_Store
