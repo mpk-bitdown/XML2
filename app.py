@@ -26,6 +26,8 @@ from xml.etree import ElementTree
 from PyPDF2 import PdfReader
 from fpdf import FPDF
 import pandas as pd
+import io
+import csv
 
 # ---------------------------------------------------------------------------
 # Flask configuration
@@ -583,6 +585,406 @@ def export_products_excel() -> Any:
         },
     )
 
+
+@app.route("/api/products", methods=["GET"])
+def list_products() -> tuple[Dict[str, Any], int]:
+    """Return a list of unique product names extracted from items."""
+    products = db.session.query(Item.name).distinct().all()
+    product_list = [p[0] for p in products]
+    return {"products": product_list}, 200
+
+
+@app.route("/api/suppliers", methods=["GET"])
+def list_suppliers() -> tuple[Dict[str, Any], int]:
+    """Return a list of all suppliers with their id, rut and name."""
+    suppliers = Supplier.query.order_by(Supplier.name).all()
+    return {
+        "suppliers": [
+            {"id": s.id, "rut": s.rut, "name": s.name} for s in suppliers
+        ]
+    }, 200
+
+
+@app.route("/api/analytics/products/chart", methods=["GET"])
+def products_chart() -> tuple[Dict[str, Any], int]:
+    """
+    Return aggregated product quantities and values based on optional filters.
+
+    Query parameters:
+        start (str): Start month in format YYYY-MM. Inclusive.
+        end (str): End month in format YYYY-MM. Inclusive.
+        supplier (str|int): Supplier id or name to filter. If numeric, treated as id.
+
+    Response:
+        dict: { "products": {product_name: {"total_qty": float, "total_value": float}} }
+    """
+    start_param = request.args.get("start")
+    end_param = request.args.get("end")
+    supplier_param = request.args.get("supplier")
+    query = db.session.query(
+        Item.name.label("producto"),
+        db.func.sum(Item.quantity).label("total_qty"),
+        db.func.sum(Item.quantity * Item.price).label("total_value"),
+    ).join(Document, Document.id == Item.document_id)
+    # Date filters
+    if start_param:
+        try:
+            start_date = datetime.strptime(start_param, "%Y-%m")
+            query = query.filter(Document.doc_date != None)
+            query = query.filter(Document.doc_date >= start_date.date())
+        except Exception:
+            pass
+    if end_param:
+        try:
+            from calendar import monthrange
+            end_date = datetime.strptime(end_param, "%Y-%m")
+            year, month = end_date.year, end_date.month
+            last_day = monthrange(year, month)[1]
+            end_full_date = datetime(year, month, last_day).date()
+            query = query.filter(Document.doc_date != None)
+            query = query.filter(Document.doc_date <= end_full_date)
+        except Exception:
+            pass
+    # Supplier filter
+    if supplier_param:
+        if supplier_param.isdigit():
+            query = query.join(Supplier, Supplier.id == Document.supplier_id)
+            query = query.filter(Supplier.id == int(supplier_param))
+        else:
+            query = query.join(Supplier, Supplier.id == Document.supplier_id)
+            query = query.filter(Supplier.name == supplier_param)
+    result_rows = query.group_by(Item.name).all()
+    products_summary: Dict[str, Dict[str, float]] = {}
+    for prod, total_qty, total_value in result_rows:
+        products_summary[prod] = {
+            "total_qty": float(total_qty or 0),
+            "total_value": float(total_value or 0),
+        }
+    return {"products": products_summary}, 200
+
+
+@app.route("/api/analytics/categories", methods=["GET"])
+def categories_analytics() -> tuple[Dict[str, Any], int]:
+    """
+    Compute product categories and aggregate quantities and values per category.
+
+    Optional query parameters:
+        start (str): Start month in format YYYY-MM. Inclusive.
+        end (str): End month in format YYYY-MM. Inclusive.
+        supplier (str|int): Supplier id or name to filter.
+
+    Categories are inferred from product names using simple heuristics. Returns a
+    dictionary of categories with total quantity and total value, along with a
+    mapping of each product name to its category.
+    """
+    start_param = request.args.get("start")
+    end_param = request.args.get("end")
+    supplier_param = request.args.get("supplier")
+    query = db.session.query(
+        Item.name.label("producto"),
+        db.func.sum(Item.quantity).label("total_qty"),
+        db.func.sum(Item.quantity * Item.price).label("total_value"),
+    ).join(Document, Document.id == Item.document_id)
+    # Date filters
+    if start_param:
+        try:
+            start_date = datetime.strptime(start_param, "%Y-%m").date()
+            query = query.filter(Document.doc_date != None)
+            query = query.filter(Document.doc_date >= start_date)
+        except Exception:
+            pass
+    if end_param:
+        try:
+            from calendar import monthrange
+            end_dt = datetime.strptime(end_param, "%Y-%m")
+            year, month = end_dt.year, end_dt.month
+            last_day = monthrange(year, month)[1]
+            end_date = datetime(year, month, last_day).date()
+            query = query.filter(Document.doc_date != None)
+            query = query.filter(Document.doc_date <= end_date)
+        except Exception:
+            pass
+    # Supplier filter
+    if supplier_param:
+        if supplier_param.isdigit():
+            query = query.join(Supplier, Supplier.id == Document.supplier_id)
+            query = query.filter(Supplier.id == int(supplier_param))
+        else:
+            query = query.join(Supplier, Supplier.id == Document.supplier_id)
+            query = query.filter(Supplier.name == supplier_param)
+    rows = query.group_by(Item.name).all()
+    def classify(name: str) -> str:
+        lower = name.lower()
+        categories_keywords = [
+            ("Carnes", ["carne", "pollo", "vacuno", "res", "cerdo", "cordero", "jamón", "tocino", "salchicha"]),
+            ("Pescados y Mariscos", ["pescado", "marisco", "atún", "salmón", "camaron", "merluza", "ostión", "chorito"]),
+            ("Lácteos", ["queso", "leche", "yogur", "mantequilla", "crema", "manjar", "helado"]),
+            ("Frutas", ["manzana", "plátano", "banana", "pera", "uva", "fresa", "frutilla", "mora", "fruta", "kiwi", "naranja", "melón", "durazno", "sandía", "piña"]),
+            ("Verduras", ["tomate", "cebolla", "lechuga", "zanahoria", "papa", "verdura", "champiñón", "brocoli", "pimiento", "col", "espinaca", "berenjena", "zapallo", "pepino", "ajo"]),
+            ("Panadería y Pastelería", ["pan", "bolleria", "bollería", "croissant", "baguette", "empanada", "empanada de horno", "torta", "pastel", "gallet", "postre", "queque"]),
+            ("Snacks y Dulces", ["snack", "galleta", "chocolate", "dulce", "caramelo", "barra", "papas fritas", "chips", "maní", "nueces", "almendra"]),
+            ("Cereales y Granos", ["arroz", "frijol", "lenteja", "poroto", "garbanzo", "cereal", "avena"]),
+            ("Pastas y Harinas", ["pasta", "fideo", "harina", "spaghetti", "macarrón", "macarrones"]),
+            ("Aceites y Condimentos", ["aceite", "sal", "azúcar", "especia", "condimento", "salsa", "aderezo", "vinagre", "mayonesa", "ketchup", "mostaza"]),
+            ("Bebidas Alcohólicas", ["vino", "cerveza", "pisco", "ron", "whisky", "vodka", "licor", "champaña"]),
+            ("Bebidas no Alcohólicas", ["agua", "soda", "jugo", "refresco", "gaseosa", "cola", "coca", "pepsi", "té", "café"]),
+            ("Aseo y Limpieza", ["jabón", "detergente", "cloro", "limpiador", "desinfectante", "escoba", "esponja", "lavaloza", "trapeador"]),
+            ("Higiene Personal", ["shampoo", "champú", "crema dental", "cepillo", "desodorante", "pañal", "toalla higiénica", "afeitar", "jabón corporal"]),
+            ("Mascotas", ["perro", "gato", "mascota", "alimento para perros", "alimento para gatos", "arena sanitaria", "hueso"]),
+            ("Bebé", ["leche infantil", "pañal", "bebé", "mamadera", "toallita húmeda"]),
+            ("Congelados", ["congelado", "helado", "hielo", "frozen", "sorbete"]),
+            ("Electrónicos y Tecnología", ["cable", "usb", "teléfono", "celular", "computador", "laptop", "batería", "cargador", "audífono"]),
+            ("Herramientas y Ferretería", ["clavo", "martillo", "serrucho", "tornillo", "destornillador", "llave", "taladro", "alicate"]),
+            ("Oficina y Papelería", ["cuaderno", "lápiz", "papel", "bolígrafo", "carpeta", "notebook", "impresora", "tinta"]),
+            ("Otros", []),
+        ]
+        for category, keywords in categories_keywords[:-1]:
+            for kw in keywords:
+                if kw in lower:
+                    return category
+        return "Otros"
+    categories_summary: Dict[str, Dict[str, float]] = {}
+    product_categories: Dict[str, str] = {}
+    for prod, total_qty, total_value in rows:
+        category = classify(prod)
+        product_categories[prod] = category
+        if category not in categories_summary:
+            categories_summary[category] = {"total_qty": 0.0, "total_value": 0.0}
+        categories_summary[category]["total_qty"] += float(total_qty or 0)
+        categories_summary[category]["total_value"] += float(total_value or 0)
+    return {"categories": categories_summary, "products": product_categories}, 200
+
+
+@app.route("/api/analytics/categories/export", methods=["GET"])
+def export_categories_excel() -> Any:
+    """
+    Export categories summary to Excel.
+
+    Each row contains:
+        - Categoría
+        - Cantidad total
+        - Valor total
+
+    Returns:
+        An Excel file for download.
+    """
+    data, _ = categories_analytics()
+    categories_summary = data.get("categories", {})
+    records = []
+    for cat, stats in categories_summary.items():
+        records.append({
+            "Categoría": cat,
+            "Cantidad total": float(stats.get("total_qty", 0)),
+            "Valor total": float(stats.get("total_value", 0)),
+        })
+    df = pd.DataFrame(records)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Categorias")
+    output.seek(0)
+    return (
+        output.getvalue(),
+        200,
+        {
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "Content-Disposition": "attachment; filename=categorias.xlsx",
+        },
+    )
+
+
+@app.route("/api/analytics", methods=["GET"])
+def analytics() -> tuple[Dict[str, Any], int]:
+    """
+    Compute and return aggregated analytics for suppliers, products and monthly quantities.
+
+    Query parameters:
+        product (optional): name of a product to get detailed monthly quantity and price stats.
+    """
+    product_name = request.args.get("product")
+    result: Dict[str, Any] = {}
+    # Providers usage: count documents per supplier
+    provider_counts = (
+        db.session.query(Supplier.name, db.func.count(Document.id))
+        .join(Document, Supplier.id == Document.supplier_id)
+        .group_by(Supplier.id)
+        .all()
+    )
+    result["providers_usage"] = {name: count for name, count in provider_counts}
+    # Products summary: total quantity and price stats per product
+    product_stats = (
+        db.session.query(
+            Item.name,
+            db.func.count(Item.id).label("count_items"),
+            db.func.sum(Item.quantity).label("total_qty"),
+            db.func.min(Item.price).label("min_price"),
+            db.func.max(Item.price).label("max_price"),
+            db.func.avg(Item.price).label("avg_price"),
+        )
+        .group_by(Item.name)
+        .all()
+    )
+    result["products_summary"] = {
+        name: {
+            "count_items": count,
+            "total_qty": float(total_qty or 0),
+            "min_price": float(min_price or 0),
+            "max_price": float(max_price or 0),
+            "avg_price": float(avg_price or 0),
+        }
+        for name, count, total_qty, min_price, max_price, avg_price in product_stats
+    }
+    # Monthly quantities across all products
+    monthly_quantities = (
+        db.session.query(
+            db.func.strftime('%Y-%m', Document.doc_date).label("month"),
+            db.func.sum(Item.quantity).label("total_qty"),
+        )
+        .join(Item, Document.id == Item.document_id)
+        .filter(Document.doc_date != None)
+        .group_by("month")
+        .order_by("month")
+        .all()
+    )
+    result["monthly_quantities"] = {month: float(total_qty or 0) for month, total_qty in monthly_quantities}
+    # If product specified, compute monthly quantity and price stats for it
+    if product_name:
+        product_monthly = (
+            db.session.query(
+                db.func.strftime('%Y-%m', Document.doc_date).label("month"),
+                db.func.sum(Item.quantity).label("total_qty"),
+                db.func.min(Item.price).label("min_price"),
+                db.func.max(Item.price).label("max_price"),
+                db.func.avg(Item.price).label("avg_price"),
+            )
+            .join(Item, Document.id == Item.document_id)
+            .filter(Item.name == product_name)
+            .filter(Document.doc_date != None)
+            .group_by("month")
+            .order_by("month")
+            .all()
+        )
+        result["product_monthly"] = {
+            month: {
+                "total_qty": float(total_qty or 0),
+                "min_price": float(min_price or 0),
+                "max_price": float(max_price or 0),
+                "avg_price": float(avg_price or 0),
+            }
+            for month, total_qty, min_price, max_price, avg_price in product_monthly
+        }
+    return result, 200
+
+
+@app.route("/api/dashboard", methods=["GET"])
+def dashboard_data() -> tuple[Dict[str, Any], int]:
+    """Return aggregated statistics for dashboard visualizations."""
+    docs = Document.query.all()
+    stats: Dict[str, Any] = {
+        "count_per_type": {},
+        "total_size_per_type": {},
+        "avg_pages": None,
+        "file_sizes": [],
+    }
+    total_pages = 0
+    pdf_count = 0
+    for doc in docs:
+        stats["count_per_type"].setdefault(doc.filetype, 0)
+        stats["count_per_type"][doc.filetype] += 1
+        stats["total_size_per_type"].setdefault(doc.filetype, 0)
+        stats["total_size_per_type"][doc.filetype] += doc.size_bytes
+        stats["file_sizes"].append(doc.size_bytes)
+        if doc.filetype == "pdf" and doc.pages is not None:
+            pdf_count += 1
+            total_pages += doc.pages
+    if pdf_count:
+        stats["avg_pages"] = total_pages / pdf_count
+    return stats, 200
+
+
+@app.route("/api/documents/csv", methods=["POST"])
+def export_documents_csv() -> Any:
+    """Return a CSV file containing selected documents metadata."""
+    data = request.get_json(silent=True) or {}
+    ids = data.get("ids")
+    query = Document.query
+    if ids:
+        query = query.filter(Document.id.in_(ids))
+    else:
+        supplier_param = request.args.get("supplier")
+        start_param = request.args.get("start")
+        end_param = request.args.get("end")
+        if supplier_param:
+            if supplier_param.isdigit():
+                query = query.join(Supplier, Supplier.id == Document.supplier_id)
+                query = query.filter(Supplier.id == int(supplier_param))
+            else:
+                query = query.join(Supplier, Supplier.id == Document.supplier_id)
+                query = query.filter(Supplier.name == supplier_param)
+        if start_param:
+            try:
+                start_dt = datetime.strptime(start_param, "%Y-%m").date()
+                query = query.filter(Document.doc_date != None)
+                query = query.filter(Document.doc_date >= start_dt)
+            except Exception:
+                pass
+        if end_param:
+            try:
+                from calendar import monthrange
+                end_dt = datetime.strptime(end_param, "%Y-%m")
+                year, month = end_dt.year, end_dt.month
+                last_day = monthrange(year, month)[1]
+                end_date = datetime(year, month, last_day).date()
+                query = query.filter(Document.doc_date != None)
+                query = query.filter(Document.doc_date <= end_date)
+            except Exception:
+                pass
+    docs = query.all()
+    from io import StringIO
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id",
+        "filename",
+        "filetype",
+        "pages",
+        "xml_root",
+        "size_bytes",
+        "upload_date",
+        "supplier_name",
+        "supplier_rut",
+        "doc_date",
+        "invoice_total",
+    ])
+    for doc in docs:
+        invoice_total = 0.0
+        for itm in doc.items:
+            if itm.total is not None:
+                invoice_total += float(itm.total)
+            elif itm.quantity is not None and itm.price is not None:
+                invoice_total += float(itm.quantity) * float(itm.price)
+        writer.writerow([
+            doc.id,
+            doc.filename,
+            doc.filetype,
+            doc.pages or "",
+            doc.xml_root or "",
+            doc.size_bytes,
+            doc.upload_date.isoformat(),
+            doc.supplier.name if doc.supplier else "",
+            doc.supplier.rut if doc.supplier else "",
+            doc.doc_date.isoformat() if doc.doc_date else "",
+            invoice_total,
+        ])
+    csv_content = output.getvalue()
+    output.close()
+    return (
+        csv_content,
+        200,
+        {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": "attachment; filename=documents.csv",
+        },
+    )
 
 @app.route("/api/analytics/ai", methods=["GET"])
 def get_ai_insights() -> Any:
