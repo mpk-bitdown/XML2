@@ -6,8 +6,30 @@
     <title>Categorías de productos (AI)</title>
     <link rel="stylesheet" href="/static/assets/bootstrap.min.css" />
     <style>
-      body { background-color: #f5f6fa; }
-      .table-hover tbody tr:hover { background-color: #f1f3f5; }
+      :root {
+        --primary: #3b7ddd;
+        --background: #0d1b2a;
+        --surface: #1e213a;
+        --surface-light: #262b44;
+        --surface-hover: #2f365a;
+        --text-primary: #f5f6fa;
+        --text-secondary: #a5a8b6;
+      }
+      body { background-color: var(--background); color: var(--text-primary); }
+      .navbar { background-color: var(--surface); }
+      .navbar .navbar-brand, .navbar .nav-link, .navbar .btn-outline-light { color: var(--text-primary) !important; }
+      .card { background-color: var(--surface); color: var(--text-primary); }
+      .table { color: var(--text-primary); }
+      .table thead { background-color: var(--surface-light); }
+      .table-striped tbody tr:nth-of-type(odd) { background-color: var(--surface-light); }
+      .table-hover tbody tr:hover { background-color: var(--surface-hover); }
+      .btn { color: var(--text-primary); }
+      .btn-primary { background-color: var(--primary); border-color: var(--primary); }
+      .btn-info { background-color: #17a2b8; border-color: #17a2b8; }
+      .btn-secondary { background-color: #6c757d; border-color: #6c757d; }
+      .form-control, .form-select { background-color: var(--surface-light); color: var(--text-primary); border-color: var(--surface-hover); }
+      .form-control::placeholder { color: var(--text-secondary); }
+      .modal-content { background-color: var(--surface); color: var(--text-primary); }
     </style>
   </head>
   <body>
@@ -65,6 +87,8 @@
               <th>Categoría</th>
               <th>Empresa(s)</th>
               <th>Producto genérico</th>
+              <th>Facturas</th>
+              <th>Valor unitario</th>
               <th>Cant. por paquete</th>
               <th>Manual</th>
             </tr>

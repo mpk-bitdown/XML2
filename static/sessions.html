@@ -6,7 +6,24 @@
     <title>Sesiones guardadas</title>
     <link rel="stylesheet" href="/static/assets/bootstrap.min.css" />
     <style>
-      body { background-color: #f5f6fa; }
+      :root {
+        --primary: #3b7ddd;
+        --background: #0d1b2a;
+        --surface: #1e213a;
+        --surface-light: #262b44;
+        --surface-hover: #2f365a;
+        --text-primary: #f5f6fa;
+        --text-secondary: #a5a8b6;
+      }
+      body { background-color: var(--background); color: var(--text-primary); }
+      .navbar { background-color: var(--surface); }
+      .navbar .navbar-brand, .navbar .nav-link, .navbar .btn-outline-light { color: var(--text-primary) !important; }
+      .table { color: var(--text-primary); }
+      .table thead { background-color: var(--surface-light); }
+      .table-striped tbody tr:nth-of-type(odd) { background-color: var(--surface-light); }
+      .table-hover tbody tr:hover { background-color: var(--surface-hover); }
+      .btn-primary { background-color: var(--primary); border-color: var(--primary); }
+      .btn { color: var(--text-primary); }
     </style>
   </head>
   <body>

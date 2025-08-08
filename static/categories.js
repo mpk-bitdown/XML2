@@ -108,12 +108,15 @@ document.addEventListener('DOMContentLoaded', () => {
       alert(err.message);
     }
   });
-  // Select all checkbox toggles all rows
+  // Select all checkbox toggles all visible rows
   const selectAllCheckbox = document.getElementById('selectAllCategories');
   selectAllCheckbox.addEventListener('change', () => {
     const checkboxes = document.querySelectorAll('.cat-select-checkbox');
     selectedProducts.clear();
     checkboxes.forEach((cb) => {
+      const row = cb.closest('tr');
+      const isVisible = row && row.style.display !== 'none';
+      if (!isVisible) return;
       cb.checked = selectAllCheckbox.checked;
       if (selectAllCheckbox.checked) {
         selectedProducts.add(cb.dataset.product);
@@ -283,7 +286,36 @@ function renderCategoriesTable() {
     // Generic product name column
     const genTd = document.createElement('td');
     genTd.textContent = rec.generic_name || '';
-    tr.appendChild(genTd);
+    // Invoice numbers column
+    const invoicesTd = document.createElement('td');
+    if (rec.invoice_numbers && rec.invoice_numbers.length > 0) {
+      const fragments = [];
+      for (let i = 0; i < rec.invoice_numbers.length; i++) {
+        const num = rec.invoice_numbers[i];
+        const docId = rec.document_ids ? rec.document_ids[i] : null;
+        if (!num) continue;
+        const link = document.createElement('a');
+        link.href = `/api/documents/${docId}/download`;
+        link.target = '_blank';
+        link.textContent = num;
+        fragments.push(link);
+      }
+      fragments.forEach((el, idx) => {
+        invoicesTd.appendChild(el);
+        if (idx < fragments.length - 1) {
+          invoicesTd.appendChild(document.createTextNode(' - '));
+        }
+      });
+    } else {
+      invoicesTd.textContent = '';
+    }
+    // Unit price column
+    const unitTd = document.createElement('td');
+    let unitVal = 0;
+    if (rec.total_qty && rec.total_qty !== 0) {
+      unitVal = rec.total_value / rec.total_qty;
+    }
+    unitTd.textContent = unitVal ? unitVal.toLocaleString('es-CL', { minimumFractionDigits: 0 }) : '0';
     // Units per package column: editable input
     const unitsTd = document.createElement('td');
     const unitsInput = document.createElement('input');
@@ -291,7 +323,6 @@ function renderCategoriesTable() {
     unitsInput.min = '0';
     unitsInput.step = 'any';
     unitsInput.classList.add('form-control', 'form-control-sm', 'package-units');
-    // Fill value if available
     if (rec.units_per_package !== null && rec.units_per_package !== undefined) {
       unitsInput.value = rec.units_per_package;
       unitsInput.dataset.originalUnits = String(rec.units_per_package);
@@ -299,7 +330,6 @@ function renderCategoriesTable() {
       unitsInput.value = '';
       unitsInput.dataset.originalUnits = '';
     }
-    // Highlight if changed
     unitsInput.addEventListener('input', () => {
       const orig = unitsInput.dataset.originalUnits;
       if (unitsInput.value !== orig) {
@@ -309,10 +339,14 @@ function renderCategoriesTable() {
       }
     });
     unitsTd.appendChild(unitsInput);
-    tr.appendChild(unitsTd);
-    // Manual indicator
+    // Manual indicator column
     const manualTd = document.createElement('td');
     manualTd.textContent = rec.manual ? 'Sí' : 'No';
+    // Append cells in order: generic, invoices, unit price, units per package, manual
+    tr.appendChild(genTd);
+    tr.appendChild(invoicesTd);
+    tr.appendChild(unitTd);
+    tr.appendChild(unitsTd);
     tr.appendChild(manualTd);
     tbody.appendChild(tr);
   });

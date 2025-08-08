@@ -6,13 +6,24 @@
     <title>Iniciar sesión</title>
     <link rel="stylesheet" href="/static/assets/bootstrap.min.css" />
     <style>
-      body {
-        background-color: #f5f6fa;
+      :root {
+        --primary: #3b7ddd;
+        --background: #0d1b2a;
+        --surface: #1e213a;
+        --surface-light: #262b44;
+        --text-primary: #f5f6fa;
+        --text-secondary: #a5a8b6;
       }
+      body { background-color: var(--background); color: var(--text-primary); }
       .login-card {
         max-width: 420px;
         margin: 80px auto;
+        background-color: var(--surface);
+        color: var(--text-primary);
       }
+      .form-control { background-color: var(--surface-light); color: var(--text-primary); border-color: var(--surface-light); }
+      .form-control::placeholder { color: var(--text-secondary); }
+      .btn-primary { background-color: var(--primary); border-color: var(--primary); }
     </style>
   </head>
   <body>

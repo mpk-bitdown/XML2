@@ -1812,6 +1812,22 @@ def product_categorization() -> Any:
                 if kw in lower:
                     return category
         return "Otros"
+    # Build mapping of invoice numbers and document IDs per product
+    invoice_map: Dict[str, list[str]] = {}
+    docid_map: Dict[str, list[int]] = {}
+    inv_rows = (
+        db.session.query(Item.name.label("product_name"), Document.id.label("doc_id"), Document.invoice_number)
+        .join(Document, Document.id == Item.document_id)
+        .all()
+    )
+    for prod_name, doc_id, inv_num in inv_rows:
+        # Store invoice number as string (or empty string if None)
+        if inv_num is None:
+            inv_str = ""
+        else:
+            inv_str = str(inv_num)
+        invoice_map.setdefault(prod_name, []).append(inv_str)
+        docid_map.setdefault(prod_name, []).append(doc_id)
     categorized = []
     uncategorized = []
     for name, qty, val in rows:
@@ -1820,6 +1836,8 @@ def product_categorization() -> Any:
         suppliers = list(supplier_map.get(name, []))
         gen_name = generic_map.get(name, None)
         units_per_package = package_map.get(name, None)
+        inv_list = invoice_map.get(name, [])
+        docid_list = docid_map.get(name, [])
         rec = {
             "product_name": name,
             "total_qty": float(qty or 0),
@@ -1829,6 +1847,8 @@ def product_categorization() -> Any:
             "supplier_names": suppliers,
             "generic_name": gen_name,
             "units_per_package": units_per_package,
+            "invoice_numbers": inv_list,
+            "document_ids": docid_list,
         }
         if cat == "Otros" and not manual:
             uncategorized.append(rec)

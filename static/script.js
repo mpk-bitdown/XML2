@@ -455,40 +455,45 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById('sessionName').value = '';
       const list = document.getElementById('sessionUsersList');
       list.innerHTML = '<div>Cargando usuarios...</div>';
-      try {
-        // Only admin can list all users; but we call anyway and filter out current user if necessary
+        try {
         const userEmail = localStorage.getItem('userEmail') || '';
         const isAdmin = localStorage.getItem('isAdmin') === 'true';
-        const res = await fetch(`${API_BASE_URL}/users`, { headers: { 'X-User-Email': userEmail } });
-        let data;
-        try { data = await res.json(); } catch (_) { data = {}; }
-        list.innerHTML = '';
-        if (!res.ok || !data.users) {
-          list.innerHTML = '<div>No se pudieron cargar usuarios.</div>';
-        } else {
-          data.users.forEach((u) => {
-            // Skip admin if not current
-            const div = document.createElement('div');
-            div.classList.add('form-check');
-            const input = document.createElement('input');
-            input.type = 'checkbox';
-            input.classList.add('form-check-input');
-            input.id = `sess-user-${u.id}`;
-            input.value = u.email;
-            // Pre-check current user and disable so cannot be deselected
-            if (u.email === userEmail) {
-              input.checked = true;
-              input.disabled = true;
+        let usersList = [];
+        if (isAdmin) {
+          // Attempt to retrieve all users if admin
+          const res = await fetch(`${API_BASE_URL}/users`, { headers: { 'X-User-Email': userEmail } });
+          try {
+            const data = await res.json();
+            if (res.ok && data.users) {
+              usersList = data.users;
             }
-            const label = document.createElement('label');
-            label.classList.add('form-check-label');
-            label.htmlFor = input.id;
-            label.textContent = u.email;
-            div.appendChild(input);
-            div.appendChild(label);
-            list.appendChild(div);
-          });
+          } catch (_) { /* ignore */ }
         }
+        // If not admin or fetch failed, include only current user
+        if (usersList.length === 0) {
+          usersList = [{ id: 0, email: userEmail }];
+        }
+        list.innerHTML = '';
+        usersList.forEach((u) => {
+          const div = document.createElement('div');
+          div.classList.add('form-check');
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.classList.add('form-check-input');
+          input.id = `sess-user-${u.id}`;
+          input.value = u.email;
+          if (u.email === userEmail) {
+            input.checked = true;
+            input.disabled = true;
+          }
+          const label = document.createElement('label');
+          label.classList.add('form-check-label');
+          label.htmlFor = input.id;
+          label.textContent = u.email;
+          div.appendChild(input);
+          div.appendChild(label);
+          list.appendChild(div);
+        });
       } catch (err) {
         list.innerHTML = '<div>Error al cargar usuarios.</div>';
       }
@@ -597,40 +602,44 @@ document.addEventListener("DOMContentLoaded", () => {
     newSessionBtn.addEventListener('click', async () => {
       const modalEl = document.getElementById('sessionModal');
       modalEl.dataset.docIds = JSON.stringify([]);
-      // Clear previous name and load users list
       document.getElementById('sessionName').value = '';
       const list = document.getElementById('sessionUsersList');
       list.innerHTML = '<div>Cargando usuarios...</div>';
       try {
         const userEmail = localStorage.getItem('userEmail') || '';
-        const res = await fetch(`${API_BASE_URL}/users`, { headers: { 'X-User-Email': userEmail } });
-        let data;
-        try { data = await res.json(); } catch (_) { data = {}; }
-        list.innerHTML = '';
-        if (!res.ok || !data.users) {
-          list.innerHTML = '<div>No se pudieron cargar usuarios.</div>';
-        } else {
-          data.users.forEach((u) => {
-            const div = document.createElement('div');
-            div.classList.add('form-check');
-            const input = document.createElement('input');
-            input.type = 'checkbox';
-            input.classList.add('form-check-input');
-            input.id = `sess-user-${u.id}`;
-            input.value = u.email;
-            if (u.email === userEmail) {
-              input.checked = true;
-              input.disabled = true;
-            }
-            const label = document.createElement('label');
-            label.classList.add('form-check-label');
-            label.htmlFor = input.id;
-            label.textContent = u.email;
-            div.appendChild(input);
-            div.appendChild(label);
-            list.appendChild(div);
-          });
+        const isAdmin = localStorage.getItem('isAdmin') === 'true';
+        let usersList = [];
+        if (isAdmin) {
+          const res = await fetch(`${API_BASE_URL}/users`, { headers: { 'X-User-Email': userEmail } });
+          try {
+            const data = await res.json();
+            if (res.ok && data.users) usersList = data.users;
+          } catch (_) { /* ignore */ }
         }
+        if (usersList.length === 0) {
+          usersList = [{ id: 0, email: userEmail }];
+        }
+        list.innerHTML = '';
+        usersList.forEach((u) => {
+          const div = document.createElement('div');
+          div.classList.add('form-check');
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.classList.add('form-check-input');
+          input.id = `sess-user-${u.id}`;
+          input.value = u.email;
+          if (u.email === userEmail) {
+            input.checked = true;
+            input.disabled = true;
+          }
+          const label = document.createElement('label');
+          label.classList.add('form-check-label');
+          label.htmlFor = input.id;
+          label.textContent = u.email;
+          div.appendChild(input);
+          div.appendChild(label);
+          list.appendChild(div);
+        });
       } catch (err) {
         list.innerHTML = '<div>Error al cargar usuarios.</div>';
       }

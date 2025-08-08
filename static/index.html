@@ -11,27 +11,84 @@
     <link rel="stylesheet" href="/static/assets/bootstrap.min.css" />
     <style>
       :root {
-        --primary: #007bff;
+        --primary: #3b7ddd;
         --accent: #28a745;
         --danger: #dc3545;
+        --background: #0d1b2a;
+        --surface: #1e213a;
+        --surface-light: #262b44;
+        --surface-hover: #2f365a;
+        --text-primary: #f5f6fa;
+        --text-secondary: #a5a8b6;
       }
       body {
-        background-color: #f5f6fa;
+        background-color: var(--background);
+        color: var(--text-primary);
       }
-      /* Action buttons used inside table */
-      button.action {
-        margin-right: 0.25rem;
-        padding: 0.25rem 0.5rem;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 0.85rem;
+      .navbar {
+        background-color: var(--surface);
       }
-      button.complete-btn {
+      .navbar .navbar-brand, .navbar .nav-link, .navbar .btn-outline-light {
+        color: var(--text-primary) !important;
+      }
+      .navbar .btn-outline-light {
+        border-color: var(--text-secondary);
+      }
+      .card {
+        background-color: var(--surface);
+        color: var(--text-primary);
+      }
+      .card-header {
         background-color: var(--primary);
         color: #fff;
       }
-
+      .table {
+        color: var(--text-primary);
+      }
+      .table thead {
+        background-color: var(--surface-light);
+        color: var(--text-primary);
+      }
+      .table-striped tbody tr:nth-of-type(odd) {
+        background-color: var(--surface-light);
+      }
+      .table-hover tbody tr:hover {
+        background-color: var(--surface-hover);
+      }
+      .btn-primary {
+        background-color: var(--primary);
+        border-color: var(--primary);
+      }
+      .btn-outline-secondary {
+        color: var(--text-secondary);
+        border-color: var(--text-secondary);
+      }
+      .btn-outline-secondary:hover {
+        background-color: var(--surface-hover);
+        color: var(--text-primary);
+      }
+      .btn-outline-light {
+        border-color: var(--text-secondary);
+      }
+      .form-control, .form-select {
+        background-color: var(--surface-light);
+        color: var(--text-primary);
+        border-color: var(--surface-hover);
+      }
+      .form-control::placeholder {
+        color: var(--text-secondary);
+      }
+      .dropdown-menu {
+        background-color: var(--surface);
+        color: var(--text-primary);
+      }
+      .dropdown-menu .form-check-label {
+        color: var(--text-primary);
+      }
+      .modal-content {
+        background-color: var(--surface);
+        color: var(--text-primary);
+      }
       /* Loader overlay shown during long operations */
       #loaderOverlay {
         position: fixed;
@@ -39,11 +96,12 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(255, 255, 255, 0.8);
+        background: rgba(0, 0, 0, 0.6);
         display: none;
         align-items: center;
         justify-content: center;
         z-index: 2000;
+        color: #fff;
       }
     </style>
   </head>
