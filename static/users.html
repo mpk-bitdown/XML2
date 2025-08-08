@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gestión de usuarios</title>
+    <link rel="stylesheet" href="/static/assets/bootstrap.min.css" />
+    <style>
+      body {
+        background-color: #f5f6fa;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation bar similar to main page -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+      <div class="container-fluid">
+        <div class="d-flex align-items-center">
+          <img src="/static/logo/logo.png" height="40" alt="Logo" class="me-2" />
+          <span class="navbar-brand mb-0 h1">Gestión Documental y Dashboards</span>
+        </div>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <span id="navUserEmail" class="text-white fw-semibold"></span>
+          <a id="navUsersLink" href="/users.html" class="btn btn-outline-light btn-sm" style="display: none;">Usuarios</a>
+          <button id="logoutBtn" class="btn btn-outline-light btn-sm" type="button">Cerrar sesión</button>
+        </div>
+      </div>
+    </nav>
+    <div class="container">
+      <h3>Administrar usuarios</h3>
+      <div id="userError" class="text-danger mb-2"></div>
+      <div class="table-responsive">
+        <table class="table table-bordered table-striped">
+          <thead class="table-light">
+            <tr>
+              <th>Correo electrónico</th>
+              <th>Rol</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody"></tbody>
+        </table>
+      </div>
+      <h5 class="mt-4">Crear nuevo usuario</h5>
+      <form id="createUserForm" class="row gy-2 gx-3 align-items-end">
+        <div class="col-sm-5">
+          <label for="newUserEmail" class="form-label">Correo electrónico</label>
+          <input type="email" class="form-control" id="newUserEmail" required />
+        </div>
+        <div class="col-sm-4">
+          <label for="newUserPassword" class="form-label">Contraseña</label>
+          <input type="password" class="form-control" id="newUserPassword" required />
+        </div>
+        <div class="col-sm-2">
+          <label for="newUserRole" class="form-label">Rol</label>
+          <select id="newUserRole" class="form-select">
+            <option value="false" selected>Usuario</option>
+            <option value="true">Administrador</option>
+          </select>
+        </div>
+        <div class="col-sm-1 d-grid">
+          <button type="submit" class="btn btn-success">Crear</button>
+        </div>
+      </form>
+    </div>
+    <script src="/static/users.js"></script>
+  </body>
+</html>

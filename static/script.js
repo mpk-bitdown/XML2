@@ -6,6 +6,12 @@
 // Use a relative path for the API so that it works in production and locally.
 const API_BASE_URL = "/api";
 
+// Arrays to hold supplier and document type filter state
+let allSuppliers = [];
+let selectedSuppliers = [];
+let allDocTypes = [];
+let selectedDocTypes = [];
+
 // Pagination state for documents table
 let allDocuments = [];
 let currentPage = 1;
@@ -18,6 +24,106 @@ let docSortState = { column: -1, ascending: true };
 Chart.defaults.font.family = 'Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif';
 Chart.defaults.color = '#343a40';
 Chart.defaults.plugins.legend.position = 'bottom';
+
+/**
+ * Helper to render the supplier dropdown with checkboxes and search.
+ */
+function renderSuppliersDropdown() {
+  const container = document.getElementById('supplierOptions');
+  container.innerHTML = '';
+  allSuppliers.forEach((sup) => {
+    const div = document.createElement('div');
+    div.classList.add('form-check');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.classList.add('form-check-input');
+    input.id = `supplier-option-${sup.id}`;
+    input.value = sup.id;
+    input.checked = selectedSuppliers.includes(sup.id);
+    input.addEventListener('change', () => {
+      if (input.checked) {
+        if (!selectedSuppliers.includes(sup.id)) selectedSuppliers.push(sup.id);
+      } else {
+        selectedSuppliers = selectedSuppliers.filter((id) => id !== sup.id);
+      }
+      // Update select-all checkbox state
+      const selectAll = document.getElementById('supplier-select-all');
+      selectAll.checked = selectedSuppliers.length === allSuppliers.length;
+      updateSupplierToggleText();
+    });
+    const label = document.createElement('label');
+    label.classList.add('form-check-label');
+    label.htmlFor = input.id;
+    label.textContent = sup.name;
+    div.appendChild(input);
+    div.appendChild(label);
+    container.appendChild(div);
+  });
+  updateSupplierToggleText();
+}
+
+/**
+ * Update the supplier dropdown toggle button text based on selections.
+ */
+function updateSupplierToggleText() {
+  const toggle = document.getElementById('supplierDropdownToggle');
+  if (!toggle) return;
+  if (selectedSuppliers.length === 0 || selectedSuppliers.length === allSuppliers.length) {
+    toggle.textContent = 'Todos';
+  } else {
+    toggle.textContent = `${selectedSuppliers.length} seleccionados`;
+  }
+}
+
+/**
+ * Helper to render the document type dropdown.
+ */
+function renderDocTypeDropdown() {
+  const container = document.getElementById('docTypeOptions');
+  container.innerHTML = '';
+  allDocTypes.forEach((t) => {
+    const div = document.createElement('div');
+    div.classList.add('form-check');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.classList.add('form-check-input');
+    const safeId = t.replace(/[^a-zA-Z0-9_-]/g, '');
+    input.id = `doctype-option-${safeId}`;
+    input.value = t;
+    input.checked = selectedDocTypes.includes(t);
+    input.addEventListener('change', () => {
+      if (input.checked) {
+        if (!selectedDocTypes.includes(t)) selectedDocTypes.push(t);
+      } else {
+        selectedDocTypes = selectedDocTypes.filter((v) => v !== t);
+      }
+      const selectAll = document.getElementById('docType-select-all');
+      selectAll.checked = selectedDocTypes.length === allDocTypes.length;
+      updateDocTypeToggleText();
+    });
+    const label = document.createElement('label');
+    label.classList.add('form-check-label');
+    label.htmlFor = input.id;
+    label.textContent = t;
+    div.appendChild(input);
+    div.appendChild(label);
+    container.appendChild(div);
+  });
+  updateDocTypeToggleText();
+}
+
+/**
+ * Update document type toggle button text.
+ */
+function updateDocTypeToggleText() {
+  const toggle = document.getElementById('docTypeDropdownToggle');
+  if (!toggle) return;
+  if (selectedDocTypes.length === 0 || selectedDocTypes.length === allDocTypes.length) {
+    toggle.textContent = 'Todos';
+  } else {
+    toggle.textContent = `${selectedDocTypes.length} seleccionados`;
+  }
+}
 
 let productChart = null;
 let categoryChart = null;
@@ -124,20 +230,23 @@ async function exportSelectedToCsv() {
   const ids = Array.from(checkboxes).map((cb) => parseInt(cb.value));
   try {
     // Build query string based on global filters only when no ids (exporting all filtered)
-    const supplier = document.getElementById("supplierSelect").value;
     const start = document.getElementById("startMonth").value;
     const end = document.getElementById("endMonth").value;
     const params = new URLSearchParams();
     if (!ids.length) {
-      // Only attach filters when exporting full list (ids empty)
-      if (supplier) params.append("supplier", supplier);
-      if (start) params.append("start", start);
-      if (end) params.append("end", end);
+      if (selectedSuppliers.length > 0 && selectedSuppliers.length < allSuppliers.length) {
+        params.append('supplier', selectedSuppliers.join(','));
+      }
+      if (selectedDocTypes.length > 0 && selectedDocTypes.length < allDocTypes.length) {
+        params.append('type', selectedDocTypes.join(','));
+      }
+      if (start) params.append('start', start);
+      if (end) params.append('end', end);
     }
-    const query = params.toString() ? `?${params.toString()}` : "";
+    const query = params.toString() ? `?${params.toString()}` : '';
     const response = await fetch(`${API_BASE_URL}/documents/csv${query}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids }),
     });
     const csvText = await response.text();
@@ -160,18 +269,43 @@ async function exportSelectedToCsv() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Load existing documents
-  loadDocuments();
-  // Load suppliers for filter
+  // Check authentication. If no logged user, redirect to login page
+  const userEmail = localStorage.getItem('userEmail');
+  const isAdmin = localStorage.getItem('isAdmin') === 'true';
+  if (!userEmail) {
+    // If user is not logged in, redirect to login page
+    window.location.href = '/login.html';
+    return;
+  }
+  // Update nav bar with user info
+  const navEmailEl = document.getElementById('navUserEmail');
+  if (navEmailEl) navEmailEl.textContent = userEmail;
+  const usersLink = document.getElementById('navUsersLink');
+  if (usersLink) usersLink.style.display = isAdmin ? 'inline-block' : 'none';
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.style.display = 'inline-block';
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('isAdmin');
+      window.location.href = '/login.html';
+    });
+  }
+  // Load suppliers and document types for filters
   loadSuppliers();
-  // Load initial product and category charts
+  loadDocTypes();
+  // Load existing documents and charts
+  loadDocuments();
   loadProductChart();
   loadCategoryChart();
   // Set up upload form handler
   const uploadForm = document.getElementById("upload-form");
-  uploadForm.addEventListener("submit", handleUpload);
+  if (uploadForm) {
+    uploadForm.addEventListener("submit", handleUpload);
+  }
   // CSV export button for documents
-  document.getElementById("exportCsvBtn").addEventListener("click", exportSelectedToCsv);
+  const csvBtn = document.getElementById("exportCsvBtn");
+  if (csvBtn) csvBtn.addEventListener("click", exportSelectedToCsv);
   // Pagination controls
   document.getElementById("itemsPerPageSelect").addEventListener("change", (e) => {
     itemsPerPage = parseInt(e.target.value, 10) || 5;
@@ -203,9 +337,27 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       await loadDocuments();
       await loadSuppliers();
+      await loadDocTypes();
       // Reload charts after deletion
       await loadProductChart();
       await loadCategoryChart();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  // Purge duplicate documents button
+  document.getElementById('purgeDuplicatesBtn').addEventListener('click', async () => {
+    if (!confirm('¿Deseas purgar los documentos duplicados? Esta acción eliminará documentos con el mismo proveedor, RUT, número de factura y artículos.')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/documents/purge_duplicates`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al purgar duplicados');
+      await loadDocuments();
+      await loadSuppliers();
+      await loadDocTypes();
+      await loadProductChart();
+      await loadCategoryChart();
+      alert(data.message || 'Duplicados eliminados correctamente');
     } catch (err) {
       alert(err.message);
     }
@@ -252,7 +404,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   // Apply filter button. When clicked, reload all data (documents, product chart, category chart)
   document.getElementById("applyFiltersBtn").addEventListener("click", () => {
-    // Reset page to first when applying filters
     currentPage = 1;
     loadDocuments();
     loadProductChart();
@@ -262,20 +413,76 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("productChartType").addEventListener("change", () => {
     loadProductChart();
   });
-
   // Metric selector for product summary
   document.getElementById("productMetricSelect").addEventListener("change", () => {
     loadProductChart();
   });
-
-  // Add click listeners to table headers for sorting
+  // Setup dropdown toggles for supplier and doc type filters
+  const supplierToggle = document.getElementById('supplierDropdownToggle');
+  const supplierDropdown = document.getElementById('supplierDropdown');
+  supplierToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    supplierDropdown.classList.toggle('show');
+    docTypeDropdown.classList.remove('show');
+  });
+  const docTypeToggle = document.getElementById('docTypeDropdownToggle');
+  const docTypeDropdown = document.getElementById('docTypeDropdown');
+  docTypeToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    docTypeDropdown.classList.toggle('show');
+    supplierDropdown.classList.remove('show');
+  });
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', () => {
+    supplierDropdown.classList.remove('show');
+    docTypeDropdown.classList.remove('show');
+  });
+  // Prevent dropdown from closing when clicking inside
+  supplierDropdown.addEventListener('click', (e) => e.stopPropagation());
+  docTypeDropdown.addEventListener('click', (e) => e.stopPropagation());
+  // Select all for suppliers
+  document.getElementById('supplier-select-all').addEventListener('change', (e) => {
+    if (e.target.checked) {
+      selectedSuppliers = allSuppliers.map((s) => s.id);
+    } else {
+      selectedSuppliers = [];
+    }
+    renderSuppliersDropdown();
+  });
+  // Search filter for suppliers
+  document.getElementById('supplierSearch').addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase();
+    const items = document.querySelectorAll('#supplierOptions .form-check');
+    items.forEach((div) => {
+      const label = div.querySelector('label').textContent.toLowerCase();
+      div.style.display = label.includes(term) ? 'block' : 'none';
+    });
+  });
+  // Select all for doc types
+  document.getElementById('docType-select-all').addEventListener('change', (e) => {
+    if (e.target.checked) {
+      selectedDocTypes = [...allDocTypes];
+    } else {
+      selectedDocTypes = [];
+    }
+    renderDocTypeDropdown();
+  });
+  // Search filter for doc types
+  document.getElementById('docTypeSearch').addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase();
+    const items = document.querySelectorAll('#docTypeOptions .form-check');
+    items.forEach((div) => {
+      const label = div.querySelector('label').textContent.toLowerCase();
+      div.style.display = label.includes(term) ? 'block' : 'none';
+    });
+  });
+  // Sorting on table headers
   const headerCells = document.querySelectorAll("#docs-table thead th");
   headerCells.forEach((th, idx) => {
     // Skip first column (selection) and last column (actions)
     if (idx === 0 || th.textContent.trim().toLowerCase().startsWith('acciones')) return;
     th.style.cursor = 'pointer';
     th.addEventListener('click', () => {
-      // Toggle sorting direction if same column clicked; otherwise default to ascending
       if (docSortState.column === idx) {
         docSortState.ascending = !docSortState.ascending;
       } else {
@@ -295,12 +502,18 @@ document.addEventListener("DOMContentLoaded", () => {
 async function loadDocuments() {
   try {
     // Build query based on global filters
-    const supplier = document.getElementById("supplierSelect").value;
     const start = document.getElementById("startMonth").value;
     const end = document.getElementById("endMonth").value;
     const invoice = document.getElementById("invoiceInput").value.trim();
     const params = new URLSearchParams();
-    if (supplier) params.append("supplier", supplier);
+    // Suppliers: if not all selected, send comma‑separated list
+    if (selectedSuppliers.length > 0 && selectedSuppliers.length < allSuppliers.length) {
+      params.append('supplier', selectedSuppliers.join(','));
+    }
+    // Document types: if not all selected, send comma‑separated list
+    if (selectedDocTypes.length > 0 && selectedDocTypes.length < allDocTypes.length) {
+      params.append('type', selectedDocTypes.join(','));
+    }
     if (start) params.append("start", start);
     if (end) params.append("end", end);
     if (invoice) params.append("invoice", invoice);
@@ -337,9 +550,17 @@ function renderDocumentTable(docs) {
     const nameCell = document.createElement("td");
     nameCell.textContent = doc.supplier_name || doc.filename || "-";
     row.appendChild(nameCell);
-    // Type
+    // Type: show specific document type when available
     const typeCell = document.createElement("td");
-    typeCell.textContent = doc.filetype.toUpperCase();
+    let typeText = '';
+    if (doc.doc_type) {
+      typeText = doc.doc_type;
+    } else if (doc.filetype) {
+      typeText = doc.filetype.toUpperCase();
+    } else {
+      typeText = '-';
+    }
+    typeCell.textContent = typeText;
     row.appendChild(typeCell);
     // Size in KB
     const sizeCell = document.createElement("td");
@@ -560,21 +781,33 @@ async function loadSuppliers() {
   try {
     const response = await fetch(`${API_BASE_URL}/suppliers`);
     const data = await response.json();
-    const select = document.getElementById("supplierSelect");
-    select.innerHTML = "";
-    // Option for all suppliers
-    const optAll = document.createElement("option");
-    optAll.value = "";
-    optAll.textContent = "Todos";
-    select.appendChild(optAll);
-    (data.suppliers || []).forEach((s) => {
-      const option = document.createElement("option");
-      option.value = s.id;
-      option.textContent = `${s.name}`;
-      select.appendChild(option);
-    });
+    allSuppliers = (data.suppliers || []).map((s) => ({ id: s.id, name: s.name }));
+    // Select all suppliers by default if not already selected
+    if (!selectedSuppliers.length) {
+      selectedSuppliers = allSuppliers.map((s) => s.id);
+    }
+    renderSuppliersDropdown();
   } catch (err) {
     console.error("Error al cargar proveedores:", err);
+  }
+}
+
+/**
+ * Load available document types from the backend and populate the filter.
+ */
+async function loadDocTypes() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/types`);
+    const data = await response.json();
+    // API returns an array of types (strings)
+    allDocTypes = data.types || [];
+    // Select all by default if no previous selection
+    if (!selectedDocTypes.length) {
+      selectedDocTypes = [...allDocTypes];
+    }
+    renderDocTypeDropdown();
+  } catch (err) {
+    console.error('Error al cargar tipos de documento:', err);
   }
 }
 
@@ -585,12 +818,16 @@ async function loadSuppliers() {
 async function loadProductChart() {
   try {
     // Get filters
-    const supplier = document.getElementById("supplierSelect").value;
     const start = document.getElementById("startMonth").value;
     const end = document.getElementById("endMonth").value;
     // Build query string
     const params = new URLSearchParams();
-    if (supplier) params.append("supplier", supplier);
+    if (selectedSuppliers.length > 0 && selectedSuppliers.length < allSuppliers.length) {
+      params.append('supplier', selectedSuppliers.join(','));
+    }
+    if (selectedDocTypes.length > 0 && selectedDocTypes.length < allDocTypes.length) {
+      params.append('type', selectedDocTypes.join(','));
+    }
     if (start) params.append("start", start);
     if (end) params.append("end", end);
     const query = params.toString() ? `?${params.toString()}` : "";
@@ -659,11 +896,15 @@ async function loadProductChart() {
 async function loadCategoryChart() {
   try {
     // Apply same filters as product chart
-    const supplier = document.getElementById("supplierSelect").value;
     const start = document.getElementById("startMonth").value;
     const end = document.getElementById("endMonth").value;
     const params = new URLSearchParams();
-    if (supplier) params.append("supplier", supplier);
+    if (selectedSuppliers.length > 0 && selectedSuppliers.length < allSuppliers.length) {
+      params.append('supplier', selectedSuppliers.join(','));
+    }
+    if (selectedDocTypes.length > 0 && selectedDocTypes.length < allDocTypes.length) {
+      params.append('type', selectedDocTypes.join(','));
+    }
     if (start) params.append("start", start);
     if (end) params.append("end", end);
     const query = params.toString() ? `?${params.toString()}` : "";

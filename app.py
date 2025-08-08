@@ -89,6 +89,8 @@ class Document(db.Model):
     invoice_address: str | None = db.Column(db.String(255), nullable=True)
     supplier_id = db.Column(db.Integer, db.ForeignKey("suppliers.id"), nullable=True)
     doc_date = db.Column(db.Date, nullable=True)  # Date of the document (e.g., FchEmis)
+    # Tipo de documento (por ejemplo Factura electrónica, Nota de crédito)
+    doc_type = db.Column(db.String(100), nullable=True)
     supplier = db.relationship("Supplier", back_populates="documents")
     items = db.relationship("Item", back_populates="document", cascade="all, delete-orphan")
 
@@ -110,6 +112,7 @@ class Document(db.Model):
             "doc_date": self.doc_date.isoformat() if self.doc_date else None,
             "invoice_number": self.invoice_number,
             "invoice_address": self.invoice_address,
+            "doc_type": self.doc_type,
         }
         if self.supplier:
             data["supplier_rut"] = self.supplier.rut
@@ -148,12 +151,42 @@ class Item(db.Model):
 
 
 # ---------------------------------------------------------------------------
+# User model for login and permissions
+class User(db.Model):
+    """Represents a system user for authentication."""
+
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)  # Stored in plain text for simplicity
+    is_admin = db.Column(db.Boolean, default=False)
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "email": self.email,
+            "is_admin": self.is_admin,
+        }
+
+
+# ---------------------------------------------------------------------------
 # Utility functions
 def create_tables() -> None:
-    """Create database tables at start up.  Drops any existing tables first."""
+    """Create database tables at start up if they do not already exist.
+
+    Additionally pre‑populate the superuser account.  Existing data are
+    preserved to avoid wiping uploaded documents on restart.
+    """
     with app.app_context():
-        db.drop_all()
         db.create_all()
+        # Ensure superuser exists
+        admin_email = os.environ.get("ADMIN_EMAIL", "mparada@edudown.cl")
+        admin_pwd = os.environ.get("ADMIN_PASSWORD", "2Edudown")
+        admin = User.query.filter_by(email=admin_email).first()
+        if admin is None:
+            admin = User(email=admin_email, password=admin_pwd, is_admin=True)
+            db.session.add(admin)
+            db.session.commit()
 
 
 def extract_document_metadata(filepath: str, filetype: str) -> Dict[str, Any]:
@@ -188,6 +221,20 @@ def serve_frontend() -> Any:
     return app.send_static_file("index.html")
 
 
+# Additional routes to serve login and user management pages
+@app.route("/login")
+def serve_login_page() -> Any:
+    """Serve the login page."""
+    return app.send_static_file("login.html")
+
+
+@app.route("/users")
+@app.route("/users.html")
+def serve_users_page() -> Any:
+    """Serve the admin users management page."""
+    return app.send_static_file("users.html")
+
+
 @app.route("/api/documents", methods=["GET"])
 def list_documents() -> tuple[Dict[str, Any], int]:
     """
@@ -211,15 +258,26 @@ def list_documents() -> tuple[Dict[str, Any], int]:
     invoice_param = request.args.get("invoice")
     start_param = request.args.get("start")
     end_param = request.args.get("end")
+    types_param = request.args.get("type")
     query = Document.query
     # Supplier filtering
     if supplier_param:
-        if supplier_param.isdigit():
+        # Allow comma‑separated list of supplier ids or names
+        supplier_values = [v.strip() for v in supplier_param.split(',') if v.strip()]
+        # If all values are digits, treat as ids
+        if supplier_values and all(v.isdigit() for v in supplier_values):
+            ids = [int(v) for v in supplier_values]
             query = query.join(Supplier, Supplier.id == Document.supplier_id)
-            query = query.filter(Supplier.id == int(supplier_param))
+            query = query.filter(Supplier.id.in_(ids))
         else:
             query = query.join(Supplier, Supplier.id == Document.supplier_id)
-            query = query.filter(Supplier.name == supplier_param)
+            query = query.filter(Supplier.name.in_(supplier_values))
+    # Document type filter (comma‑separated list)
+    if types_param:
+        types_list = [t.strip() for t in types_param.split(',') if t.strip()]
+        if types_list:
+            query = query.filter(Document.doc_type.in_(types_list))
+
     # Start date filter
     if start_param:
         try:
@@ -325,6 +383,24 @@ def upload_document() -> tuple[Dict[str, Any], int]:
                         if not addr:
                             addr = receptor.findtext('sii:DirDest', default='', namespaces=ns)
                         invoice_address = addr.strip() if addr else None
+                    # Determine document type from TipoDTE or TpoDoc fields
+                    doc_type = None
+                    # Try TipoDTE as defined by SII (e.g., 33=Factura, 34=Factura exenta, 61=Nota de crédito, 56=Nota de débito)
+                    tipo_text = (
+                        iddoc.findtext('sii:TipoDTE', default='', namespaces=ns)
+                        or iddoc.findtext('sii:TpoDoc', default='', namespaces=ns)
+                    )
+                    tipo_map = {
+                        '33': 'Factura electrónica',
+                        '34': 'Factura exenta',
+                        '61': 'Nota de crédito',
+                        '56': 'Nota de débito',
+                        '52': 'Guía de despacho',
+                        '39': 'Boleta',
+                        '41': 'Boleta exenta',
+                    }
+                    if tipo_text:
+                        doc_type = tipo_map.get(tipo_text.strip(), tipo_text.strip())
                     doc = Document(
                         filename=filename,
                         filetype=ext,
@@ -335,6 +411,7 @@ def upload_document() -> tuple[Dict[str, Any], int]:
                         doc_date=doc_date,
                         invoice_number=invoice_number,
                         invoice_address=invoice_address,
+                        doc_type=doc_type,
                     )
                     db.session.add(doc)
                     created_docs.append(doc)
@@ -370,6 +447,7 @@ def upload_document() -> tuple[Dict[str, Any], int]:
                     pages=None,
                     xml_root=meta.get("xml_root"),
                     size_bytes=size,
+                    doc_type=None,
                 )
                 db.session.add(doc)
                 created_docs.append(doc)
@@ -380,6 +458,7 @@ def upload_document() -> tuple[Dict[str, Any], int]:
                 pages=meta.get("pages"),
                 xml_root=meta.get("xml_root"),
                 size_bytes=size,
+                doc_type='PDF',
             )
             db.session.add(doc)
             created_docs.append(doc)
@@ -653,6 +732,12 @@ def products_chart() -> tuple[Dict[str, Any], int]:
         else:
             query = query.join(Supplier, Supplier.id == Document.supplier_id)
             query = query.filter(Supplier.name == supplier_param)
+    # Document type filter (comma‑separated)
+    types_param = request.args.get("type")
+    if types_param:
+        types_list = [t.strip() for t in types_param.split(',') if t.strip()]
+        if types_list:
+            query = query.filter(Document.doc_type.in_(types_list))
     result_rows = query.group_by(Item.name).all()
     products_summary: Dict[str, Dict[str, float]] = {}
     for prod, total_qty, total_value in result_rows:
@@ -680,6 +765,7 @@ def categories_analytics() -> tuple[Dict[str, Any], int]:
     start_param = request.args.get("start")
     end_param = request.args.get("end")
     supplier_param = request.args.get("supplier")
+    types_param = request.args.get("type")
     query = db.session.query(
         Item.name.label("producto"),
         db.func.sum(Item.quantity).label("total_qty"),
@@ -713,6 +799,29 @@ def categories_analytics() -> tuple[Dict[str, Any], int]:
             query = query.join(Supplier, Supplier.id == Document.supplier_id)
             query = query.filter(Supplier.name == supplier_param)
     rows = query.group_by(Item.name).all()
+    # Apply document type filter after grouping if provided
+    if types_param:
+        types_list = [t.strip() for t in types_param.split(',') if t.strip()]
+        if types_list:
+            # Filter rows by doc_type by re-querying documents for each product; for efficiency we
+            # instead build a set of allowed doc ids once and filter rows accordingly.
+            allowed_doc_ids = {
+                doc.id for doc in Document.query.filter(Document.doc_type.in_(types_list)).all()
+            }
+            # Filter out products whose documents are not in allowed list by checking any item of the product
+            filtered = []
+            for prod, total_qty, total_value in rows:
+                # Determine if this product appears in any allowed document
+                any_match = (
+                    db.session.query(Item)
+                    .join(Document, Document.id == Item.document_id)
+                    .filter(Item.name == prod)
+                    .filter(Document.id.in_(allowed_doc_ids))
+                    .count() > 0
+                )
+                if any_match:
+                    filtered.append((prod, total_qty, total_value))
+            rows = filtered
     def classify(name: str) -> str:
         lower = name.lower()
         categories_keywords = [
@@ -790,6 +899,14 @@ def export_categories_excel() -> Any:
             "Content-Disposition": "attachment; filename=categorias.xlsx",
         },
     )
+
+
+@app.route("/api/documents/types", methods=["GET"])
+def list_document_types() -> tuple[Dict[str, Any], int]:
+    """Return a list of unique document types present in the database."""
+    types = db.session.query(Document.doc_type).filter(Document.doc_type != None).distinct().all()
+    type_list = [t[0] for t in types]
+    return {"types": type_list}, 200
 
 
 @app.route("/api/analytics", methods=["GET"])
@@ -985,6 +1102,121 @@ def export_documents_csv() -> Any:
             "Content-Disposition": "attachment; filename=documents.csv",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Authentication and user management
+
+@app.route("/api/login", methods=["POST"])
+def login() -> Any:
+    """
+    Authenticate a user with email and password.
+
+    Expects JSON body {"email": str, "password": str}.  Returns JSON
+    indicating success and whether the user is an admin.  If the
+    credentials are invalid, returns HTTP 401.
+    """
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    password = (data.get("password") or "").strip()
+    user = User.query.filter_by(email=email).first()
+    if user and user.password == password:
+        return {"success": True, "is_admin": bool(user.is_admin)}, 200
+    return {"error": "Credenciales inválidas"}, 401
+
+
+@app.route("/api/users", methods=["GET", "POST", "DELETE"])
+def manage_users() -> Any:
+    """
+    Admin‑only endpoint to manage users.
+
+    Clients must include the current user's email in the ``X-User-Email``
+    header.  Only the superuser (is_admin=True) can list, create or delete
+    users.
+
+    * GET: returns a list of users (without passwords).
+    * POST: create a new user.  JSON body must include ``email`` and
+      ``password``.  Optional ``is_admin`` boolean.
+    * DELETE: remove a user by id specified in JSON body.  Cannot delete
+      the superuser.
+    """
+    current_email = request.headers.get("X-User-Email")
+    current_user = User.query.filter_by(email=current_email).first()
+    if not current_user or not current_user.is_admin:
+        return {"error": "No autorizado"}, 403
+    if request.method == "GET":
+        users = User.query.all()
+        return {"users": [u.as_dict() for u in users]}, 200
+    data = request.get_json(silent=True) or {}
+    if request.method == "POST":
+        email = (data.get("email") or "").strip()
+        password = (data.get("password") or "").strip()
+        is_admin_flag = bool(data.get("is_admin", False))
+        if not email or not password:
+            return {"error": "Email y contraseña son obligatorios"}, 400
+        if User.query.filter_by(email=email).first():
+            return {"error": "El usuario ya existe"}, 400
+        new_user = User(email=email, password=password, is_admin=is_admin_flag)
+        db.session.add(new_user)
+        db.session.commit()
+        return new_user.as_dict(), 201
+    # DELETE: allow deleting by id or email
+    # Accept either "id" (int) or "email" (str) in body
+    user_id = data.get("id")
+    email_param = (data.get("email") or "").strip()
+    if not user_id and not email_param:
+        return {"error": "ID o email requerido"}, 400
+    user: User | None = None
+    if user_id:
+        try:
+            user = User.query.get(int(user_id))
+        except Exception:
+            user = None
+    if not user and email_param:
+        user = User.query.filter_by(email=email_param).first()
+    if not user:
+        return {"error": "Usuario no encontrado"}, 404
+    # Prevent deletion of superuser
+    admin_email = os.environ.get("ADMIN_EMAIL", "mparada@edudown.cl")
+    if user.email == admin_email:
+        return {"error": "No se puede eliminar el usuario administrador"}, 400
+    db.session.delete(user)
+    db.session.commit()
+    return {"message": "Usuario eliminado"}, 200
+
+
+@app.route("/api/documents/purge_duplicates", methods=["DELETE"])
+def purge_duplicates() -> Any:
+    """
+    Remove duplicate XML documents based on invoice number, supplier and items.
+
+    Keeps the earliest document (by id) in each duplicate group and deletes
+    subsequent ones, along with their files and related database records.
+    Returns the number of removed documents.
+    """
+    # Build groups by key: (invoice_number, supplier_id, doc_date, tuple of item details)
+    docs = Document.query.filter(Document.filetype == 'xml').all()
+    groups: Dict[tuple, list[Document]] = {}
+    for doc in docs:
+        items_key = tuple(sorted([(it.name, it.quantity, it.price) for it in doc.items]))
+        key = (doc.invoice_number, doc.supplier_id, doc.doc_date, items_key)
+        groups.setdefault(key, []).append(doc)
+    removed = 0
+    for key, dlist in groups.items():
+        if len(dlist) > 1:
+            # Keep the earliest id
+            sorted_docs = sorted(dlist, key=lambda d: d.id)
+            for dup in sorted_docs[1:]:
+                # Remove file from uploads
+                try:
+                    os.remove(os.path.join(app.config["UPLOAD_FOLDER"], dup.filename))
+                except FileNotFoundError:
+                    pass
+                # Delete record cascades items
+                db.session.delete(dup)
+                removed += 1
+    db.session.commit()
+    return {"removed": removed, "message": f"Se eliminaron {removed} duplicados"}, 200
 
 @app.route("/api/analytics/ai", methods=["GET"])
 def get_ai_insights() -> Any:

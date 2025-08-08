@@ -34,36 +34,70 @@
     </style>
   </head>
   <body>
-    <!-- Navigation bar with logo -->
+    <!-- Navigation bar with logo and user info -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-      <div class="container-fluid align-items-center">
-        <!-- Point the logo to the static directory -->
-        <img src="/static/logo/logo.png" height="40" alt="Logo" class="me-2" />
-        <span class="navbar-brand mb-0 h1">Gestión Documental y Dashboards</span>
+      <div class="container-fluid">
+        <div class="d-flex align-items-center">
+          <!-- Logo -->
+          <img src="/static/logo/logo.png" height="40" alt="Logo" class="me-2" />
+          <span class="navbar-brand mb-0 h1">Gestión Documental y Dashboards</span>
+        </div>
+        <!-- User section (updated dynamically in script.js) -->
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <span id="navUserEmail" class="text-white fw-semibold"></span>
+          <!-- Link to admin user management (only visible for admins) -->
+          <a id="navUsersLink" href="/users.html" class="btn btn-outline-light btn-sm" style="display: none;">Usuarios</a>
+          <button id="logoutBtn" class="btn btn-outline-light btn-sm" type="button" style="display: none;">Cerrar sesión</button>
+        </div>
       </div>
     </nav>
     <div class="container-fluid px-4">
       <!-- Global filter controls (applied to all tables and charts) -->
       <div class="row gy-3 mb-4" id="globalFilters">
-        <div class="col-12 col-md-3">
-          <label for="supplierSelect" class="form-label">Proveedor:</label>
-          <select id="supplierSelect" class="form-select"></select>
+        <!-- Supplier multi-select filter -->
+        <div class="col-12 col-md-2 position-relative">
+          <label class="form-label">Proveedor:</label>
+          <button id="supplierDropdownToggle" class="form-select text-start" type="button">Todos</button>
+          <div id="supplierDropdown" class="dropdown-menu w-100 p-2" style="max-height: 200px; overflow: auto;">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="supplier-select-all" checked />
+              <label class="form-check-label" for="supplier-select-all">(Seleccionar todo)</label>
+            </div>
+            <input type="text" id="supplierSearch" class="form-control form-control-sm mb-2" placeholder="Buscar" />
+            <div id="supplierOptions"></div>
+          </div>
         </div>
-        <div class="col-12 col-md-3">
+        <!-- Document type multi-select filter -->
+        <div class="col-12 col-md-2 position-relative">
+          <label class="form-label">Tipo de documento:</label>
+          <button id="docTypeDropdownToggle" class="form-select text-start" type="button">Todos</button>
+          <div id="docTypeDropdown" class="dropdown-menu w-100 p-2" style="max-height: 200px; overflow: auto;">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="docType-select-all" checked />
+              <label class="form-check-label" for="docType-select-all">(Seleccionar todo)</label>
+            </div>
+            <input type="text" id="docTypeSearch" class="form-control form-control-sm mb-2" placeholder="Buscar" />
+            <div id="docTypeOptions"></div>
+          </div>
+        </div>
+        <!-- Start month filter -->
+        <div class="col-12 col-md-2">
           <label for="startMonth" class="form-label">Desde (mes):</label>
           <input type="month" id="startMonth" class="form-control" />
         </div>
-        <div class="col-12 col-md-3">
+        <!-- End month filter -->
+        <div class="col-12 col-md-2">
           <label for="endMonth" class="form-label">Hasta (mes):</label>
           <input type="month" id="endMonth" class="form-control" />
         </div>
-        <div class="col-12 col-md-3 d-flex align-items-end">
-          <button id="applyFiltersBtn" class="btn btn-primary w-100">Aplicar filtros</button>
-        </div>
-        <!-- Optional invoice number search -->
-        <div class="col-12 col-md-3">
+        <!-- Invoice number search -->
+        <div class="col-12 col-md-2">
           <label for="invoiceInput" class="form-label">Número de factura:</label>
           <input type="text" id="invoiceInput" class="form-control" placeholder="Buscar por número" />
+        </div>
+        <!-- Apply filters button -->
+        <div class="col-12 col-md-2 d-flex align-items-end">
+          <button id="applyFiltersBtn" class="btn btn-primary w-100">Aplicar filtros</button>
         </div>
       </div>
       <!-- Upload and table section -->
@@ -91,6 +125,7 @@
               <span>Documentos cargados</span>
               <div class="d-flex gap-2">
                 <button id="deleteAllBtn" class="btn btn-danger btn-sm">Borrar todo</button>
+                <button id="purgeDuplicatesBtn" class="btn btn-warning btn-sm">Purgar duplicados</button>
                 <button id="exportCsvBtn" class="btn btn-outline-light btn-sm">Descargar CSV</button>
               </div>
             </div>
