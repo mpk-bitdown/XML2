@@ -117,13 +117,16 @@ class Document(db.Model):
         if self.supplier:
             data["supplier_rut"] = self.supplier.rut
             data["supplier_name"] = self.supplier.name
-        total_value = 0.0
+        total_value_net = 0.0
         for itm in self.items:
+            # Compute net value (quantity * price) if total not provided
             if itm.total is not None:
-                total_value += float(itm.total)
+                total_value_net += float(itm.total)
             elif itm.quantity is not None and itm.price is not None:
-                total_value += float(itm.quantity) * float(itm.price)
-        data["invoice_total"] = total_value
+                total_value_net += float(itm.quantity) * float(itm.price)
+        data["invoice_total"] = total_value_net
+        # Also compute value including VAT (19%) for convenience
+        data["invoice_total_with_tax"] = round(total_value_net * 1.19, 2)
         return data
 
 
@@ -225,6 +228,18 @@ class ManualCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     product_name = db.Column(db.String(255), unique=True, nullable=False)
     category = db.Column(db.String(255), nullable=False)
+
+
+class GenericProduct(db.Model):
+    """
+    Associates a specific product name with a generic product name.  This
+    allows grouping similar products under a common generic label for
+    analytics and filtering.
+    """
+    __tablename__ = "generic_products"
+    id = db.Column(db.Integer, primary_key=True)
+    product_name = db.Column(db.String(255), unique=True, nullable=False)
+    generic_name = db.Column(db.String(255), nullable=False)
 
 
 # ---------------------------------------------------------------------------
@@ -687,7 +702,12 @@ def export_products_excel() -> Any:
     Returns:
         A streaming response with the Excel file for download.
     """
-    rows = (
+    # Apply optional filters (supplier, type, start, end)
+    supplier_param = request.args.get("supplier")
+    types_param = request.args.get("type")
+    start_param = request.args.get("start")
+    end_param = request.args.get("end")
+    query = (
         db.session.query(
             Item.name.label("producto"),
             db.func.strftime('%m%Y', Document.doc_date).label("mes"),
@@ -700,9 +720,41 @@ def export_products_excel() -> Any:
         )
         .join(Document, Document.id == Item.document_id)
         .join(Supplier, Supplier.id == Document.supplier_id)
-        .filter(Document.doc_date != None)
-        .all()
     )
+    # Date filters
+    if start_param:
+        try:
+            start_dt = datetime.strptime(start_param, "%Y-%m").date()
+            query = query.filter(Document.doc_date != None)
+            query = query.filter(Document.doc_date >= start_dt)
+        except Exception:
+            pass
+    if end_param:
+        try:
+            from calendar import monthrange
+            end_dt = datetime.strptime(end_param, "%Y-%m")
+            last_day = monthrange(end_dt.year, end_dt.month)[1]
+            end_date = datetime(end_dt.year, end_dt.month, last_day).date()
+            query = query.filter(Document.doc_date != None)
+            query = query.filter(Document.doc_date <= end_date)
+        except Exception:
+            pass
+    # Supplier filter (comma separated ids or names)
+    if supplier_param:
+        supplier_values = [v.strip() for v in supplier_param.split(',') if v.strip()]
+        if supplier_values:
+            # Determine if numeric ids
+            if all(v.isdigit() for v in supplier_values):
+                ids = [int(v) for v in supplier_values]
+                query = query.filter(Supplier.id.in_(ids))
+            else:
+                query = query.filter(Supplier.name.in_(supplier_values))
+    # Document type filter (comma separated)
+    if types_param:
+        types_list = [t.strip() for t in types_param.split(',') if t.strip()]
+        if types_list:
+            query = query.filter(Document.doc_type.in_(types_list))
+    rows = query.filter(Document.doc_date != None).all()
     summary: Dict[str, Dict[str, Any]] = {}
     for r in rows:
         prod = r.producto
@@ -892,38 +944,23 @@ def categories_analytics() -> tuple[Dict[str, Any], int]:
             query = query.filter(Document.doc_date <= end_date)
         except Exception:
             pass
-    # Supplier filter
+    # Supplier filter (support comma separated list of ids or names)
     if supplier_param:
-        if supplier_param.isdigit():
+        supplier_values = [v.strip() for v in supplier_param.split(',') if v.strip()]
+        if supplier_values:
             query = query.join(Supplier, Supplier.id == Document.supplier_id)
-            query = query.filter(Supplier.id == int(supplier_param))
-        else:
-            query = query.join(Supplier, Supplier.id == Document.supplier_id)
-            query = query.filter(Supplier.name == supplier_param)
-    rows = query.group_by(Item.name).all()
-    # Apply document type filter after grouping if provided
+            if all(v.isdigit() for v in supplier_values):
+                ids = [int(v) for v in supplier_values]
+                query = query.filter(Supplier.id.in_(ids))
+            else:
+                query = query.filter(Supplier.name.in_(supplier_values))
+    # Apply document type filter before grouping if provided
     if types_param:
         types_list = [t.strip() for t in types_param.split(',') if t.strip()]
         if types_list:
-            # Filter rows by doc_type by re-querying documents for each product; for efficiency we
-            # instead build a set of allowed doc ids once and filter rows accordingly.
-            allowed_doc_ids = {
-                doc.id for doc in Document.query.filter(Document.doc_type.in_(types_list)).all()
-            }
-            # Filter out products whose documents are not in allowed list by checking any item of the product
-            filtered = []
-            for prod, total_qty, total_value in rows:
-                # Determine if this product appears in any allowed document
-                any_match = (
-                    db.session.query(Item)
-                    .join(Document, Document.id == Item.document_id)
-                    .filter(Item.name == prod)
-                    .filter(Document.id.in_(allowed_doc_ids))
-                    .count() > 0
-                )
-                if any_match:
-                    filtered.append((prod, total_qty, total_value))
-            rows = filtered
+            query = query.filter(Document.doc_type.in_(types_list))
+
+    rows = query.group_by(Item.name).all()
     # Preload manual category assignments once to avoid repeated queries
     manual_map = {mc.product_name.lower(): mc.category for mc in ManualCategory.query.all()}
 
@@ -1519,6 +1556,56 @@ def delete_manual_category(product_name: str) -> Any:
 
 
 # ---------------------------------------------------------------------------
+# Generic products endpoints
+
+@app.route("/api/generic_products", methods=["GET", "POST"])
+def generic_products_api() -> Any:
+    """
+    List or update generic product mappings.
+
+    * GET: returns all generic product mappings as a list of objects
+      {product_name, generic_name}.
+    * POST: create or update a generic mapping.  The JSON body must
+      include ``product_name`` and ``generic_name``.  If a mapping exists,
+      it will be updated; otherwise a new record is created.  Returns
+      the upserted record.
+    """
+    if request.method == "GET":
+        recs = GenericProduct.query.all()
+        return {"generic_products": [
+            {"product_name": gp.product_name, "generic_name": gp.generic_name}
+            for gp in recs
+        ]}, 200
+    # POST
+    data = request.get_json(silent=True) or {}
+    product_name = (data.get("product_name") or "").strip()
+    generic_name = (data.get("generic_name") or "").strip()
+    if not product_name or not generic_name:
+        return {"error": "Se requieren product_name y generic_name"}, 400
+    gp = GenericProduct.query.filter_by(product_name=product_name).first()
+    if gp:
+        gp.generic_name = generic_name
+    else:
+        gp = GenericProduct(product_name=product_name, generic_name=generic_name)
+        db.session.add(gp)
+    db.session.commit()
+    return {"product_name": gp.product_name, "generic_name": gp.generic_name}, 200
+
+
+@app.route("/api/generic_products/<string:product_name>", methods=["DELETE"])
+def delete_generic_product(product_name: str) -> Any:
+    """
+    Delete a generic product mapping for a given product name.
+    """
+    gp = GenericProduct.query.filter_by(product_name=product_name).first()
+    if not gp:
+        return {"error": "Producto genérico no encontrado"}, 404
+    db.session.delete(gp)
+    db.session.commit()
+    return {"message": "Producto genérico eliminado"}, 200
+
+
+# ---------------------------------------------------------------------------
 # Product categorization endpoints
 
 @app.route("/api/products/categorization", methods=["GET"])
@@ -1545,6 +1632,18 @@ def product_categorization() -> Any:
         .group_by(Item.name)
         .all()
     )
+    # Build supplier list per product
+    supplier_map: Dict[str, set[str]] = {}
+    sup_rows = (
+        db.session.query(Item.name.label("product_name"), Supplier.name.label("supplier_name"))
+        .join(Document, Document.id == Item.document_id)
+        .join(Supplier, Supplier.id == Document.supplier_id)
+        .all()
+    )
+    for prod_name, supplier_name in sup_rows:
+        supplier_map.setdefault(prod_name, set()).add(supplier_name)
+    # Build generic product mapping
+    generic_map = {gp.product_name: gp.generic_name for gp in GenericProduct.query.all()}
     # Build manual category lookup
     manual_map = {mc.product_name.lower(): mc.category for mc in ManualCategory.query.all()}
     # Classification function (reuse heuristics from categories_analytics)
@@ -1585,12 +1684,16 @@ def product_categorization() -> Any:
     for name, qty, val in rows:
         cat = classify(name)
         manual = name.lower() in manual_map
+        suppliers = list(supplier_map.get(name, []))
+        gen_name = generic_map.get(name, None)
         rec = {
             "product_name": name,
             "total_qty": float(qty or 0),
             "total_value": float(val or 0),
             "category": cat,
             "manual": manual,
+            "supplier_names": suppliers,
+            "generic_name": gen_name,
         }
         if cat == "Otros" and not manual:
             uncategorized.append(rec)

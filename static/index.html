@@ -31,6 +31,20 @@
         background-color: var(--primary);
         color: #fff;
       }
+
+      /* Loader overlay shown during long operations */
+      #loaderOverlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+      }
     </style>
   </head>
   <body>
@@ -38,8 +52,10 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
       <div class="container-fluid">
         <div class="d-flex align-items-center">
-          <!-- Logo -->
-          <img src="/static/logo/logo.png" height="40" alt="Logo" class="me-2" />
+          <!-- Logo clickable: wrap in anchor to navigate to dashboard root -->
+          <a href="/" class="d-flex align-items-center text-decoration-none">
+            <img src="/static/logo/logo.png" height="40" alt="Logo" class="me-2" />
+          </a>
           <span class="navbar-brand mb-0 h1">Gestión Documental y Dashboards</span>
         </div>
         <!-- User section (updated dynamically in script.js) -->
@@ -133,8 +149,7 @@
                 <button id="exportCsvBtn" class="btn btn-outline-light btn-sm">Descargar CSV</button>
                 <!-- Button to save current documents as a session -->
                 <button id="saveSessionBtn" class="btn btn-info btn-sm">Guardar sesión</button>
-                <!-- Button to navigate to saved sessions -->
-                <button id="viewSessionsBtn" class="btn btn-secondary btn-sm">Sesiones guardadas</button>
+                <!-- Removed redundant 'Sesiones guardadas' button -->
               </div>
             </div>
             <div class="table-responsive">
@@ -194,12 +209,13 @@
               </div>
 
       <!-- Session modal (for saving document sessions) -->
-      <div class="modal fade" id="sessionModal" tabindex="-1" aria-labelledby="sessionModalLabel" aria-hidden="true">
+      <div class="modal" id="sessionModal" style="display:none;">
         <div class="modal-dialog">
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title" id="sessionModalLabel">Guardar sesión</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              <!-- Close button without bootstrap dismiss attributes -->
+              <button type="button" class="btn-close" aria-label="Close"></button>
             </div>
             <div class="modal-body">
               <div class="mb-3">
@@ -212,7 +228,7 @@
               </div>
             </div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="button" class="btn btn-secondary">Cancelar</button>
               <button type="button" class="btn btn-primary" id="sessionModalSaveBtn">Guardar</button>
             </div>
           </div>
@@ -253,6 +269,12 @@
       </div>
     </div>
     <!-- Local Chart.js copy to ensure availability offline -->
+    <!-- Loader overlay shown during asynchronous operations -->
+    <div id="loaderOverlay">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Cargando...</span>
+      </div>
+    </div>
     <!-- Load Chart.js and our custom script from the static folder -->
     <script src="/static/assets/chart.js"></script>
     <script src="/static/script.js"></script>

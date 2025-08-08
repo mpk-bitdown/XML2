@@ -2,6 +2,8 @@
 
 let categoriesData = [];
 let allCategoryOptions = [];
+// Track selected products for bulk operations
+let selectedProducts = new Set();
 
 document.addEventListener('DOMContentLoaded', () => {
   const userEmail = localStorage.getItem('userEmail');
@@ -36,6 +38,88 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('saveCategoriesBtn').addEventListener('click', saveManualCategories);
   // Apply ML
   document.getElementById('applyMlBtn').addEventListener('click', applyMl);
+  // Bulk operations handlers
+  const bulkCategorySelect = document.getElementById('bulkCategorySelect');
+  const applyBulkCategoryBtn = document.getElementById('applyBulkCategoryBtn');
+  const applyBulkGenericBtn = document.getElementById('applyBulkGenericBtn');
+  const bulkGenericInput = document.getElementById('bulkGenericInput');
+  // Apply bulk category to selected
+  applyBulkCategoryBtn.addEventListener('click', async () => {
+    const newCat = bulkCategorySelect.value;
+    if (!newCat) {
+      alert('Selecciona una categoría');
+      return;
+    }
+    if (selectedProducts.size === 0) {
+      alert('No hay productos seleccionados');
+      return;
+    }
+    try {
+      for (const prod of selectedProducts) {
+        const res = await fetch('/api/manual_categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_name: prod, category: newCat }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Error al aplicar categoría');
+        }
+      }
+      alert('Categoría aplicada a seleccionados');
+      // Clear selections and reload
+      selectedProducts.clear();
+      document.getElementById('selectAllCategories').checked = false;
+      loadCategorization();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  // Apply bulk generic mapping to selected
+  applyBulkGenericBtn.addEventListener('click', async () => {
+    const genName = bulkGenericInput.value.trim();
+    if (!genName) {
+      alert('Ingresa un nombre genérico');
+      return;
+    }
+    if (selectedProducts.size === 0) {
+      alert('No hay productos seleccionados');
+      return;
+    }
+    try {
+      for (const prod of selectedProducts) {
+        const res = await fetch('/api/generic_products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_name: prod, generic_name: genName }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Error al asignar genérico');
+        }
+      }
+      alert('Genérico asignado a seleccionados');
+      // Clear selections and input
+      selectedProducts.clear();
+      bulkGenericInput.value = '';
+      document.getElementById('selectAllCategories').checked = false;
+      loadCategorization();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  // Select all checkbox toggles all rows
+  const selectAllCheckbox = document.getElementById('selectAllCategories');
+  selectAllCheckbox.addEventListener('change', () => {
+    const checkboxes = document.querySelectorAll('.cat-select-checkbox');
+    selectedProducts.clear();
+    checkboxes.forEach((cb) => {
+      cb.checked = selectAllCheckbox.checked;
+      if (selectAllCheckbox.checked) {
+        selectedProducts.add(cb.dataset.product);
+      }
+    });
+  });
 });
 
 async function loadCategorization() {
@@ -58,6 +142,26 @@ async function loadCategorization() {
       'Herramientas y Ferretería', 'Oficina y Papelería', 'Otros'
     ].forEach((c) => setOpts.add(c));
     allCategoryOptions = Array.from(setOpts);
+    // Populate bulk category dropdown
+    const bulkSelect = document.getElementById('bulkCategorySelect');
+    if (bulkSelect) {
+      bulkSelect.innerHTML = '';
+      // Add a placeholder option
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '-- Categoría --';
+      bulkSelect.appendChild(placeholder);
+      allCategoryOptions.forEach((opt) => {
+        const option = document.createElement('option');
+        option.value = opt;
+        option.textContent = opt;
+        bulkSelect.appendChild(option);
+      });
+    }
+    // Reset selections
+    selectedProducts.clear();
+    const selectAllCheckbox = document.getElementById('selectAllCategories');
+    if (selectAllCheckbox) selectAllCheckbox.checked = false;
     renderCategoriesTable();
   } catch (err) {
     alert(err.message);
@@ -67,8 +171,29 @@ async function loadCategorization() {
 function renderCategoriesTable() {
   const tbody = document.getElementById('categoriesBody');
   tbody.innerHTML = '';
-  categoriesData.forEach((rec, index) => {
+  categoriesData.forEach((rec) => {
     const tr = document.createElement('tr');
+    // Checkbox cell for selecting product
+    const selTd = document.createElement('td');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.classList.add('form-check-input', 'cat-select-checkbox');
+    checkbox.dataset.product = rec.product_name;
+    checkbox.checked = selectedProducts.has(rec.product_name);
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) {
+        selectedProducts.add(rec.product_name);
+      } else {
+        selectedProducts.delete(rec.product_name);
+      }
+      // Update select all checkbox state
+      const allBoxes = document.querySelectorAll('.cat-select-checkbox');
+      const allChecked = Array.from(allBoxes).every((cb) => cb.checked);
+      const selectAll = document.getElementById('selectAllCategories');
+      if (selectAll) selectAll.checked = allChecked;
+    });
+    selTd.appendChild(checkbox);
+    tr.appendChild(selTd);
     // Product name
     const nameTd = document.createElement('td');
     nameTd.textContent = rec.product_name;
@@ -108,6 +233,18 @@ function renderCategoriesTable() {
     });
     catTd.appendChild(select);
     tr.appendChild(catTd);
+    // Supplier names column
+    const suppTd = document.createElement('td');
+    if (rec.supplier_names && rec.supplier_names.length) {
+      suppTd.textContent = rec.supplier_names.join(', ');
+    } else {
+      suppTd.textContent = '';
+    }
+    tr.appendChild(suppTd);
+    // Generic product name column
+    const genTd = document.createElement('td');
+    genTd.textContent = rec.generic_name || '';
+    tr.appendChild(genTd);
     // Manual indicator
     const manualTd = document.createElement('td');
     manualTd.textContent = rec.manual ? 'Sí' : 'No';

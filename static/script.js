@@ -20,6 +20,20 @@ let itemsPerPage = 5;
 // State for sorting documents table. Stores last sorted column index and direction.
 let docSortState = { column: -1, ascending: true };
 
+// Loader overlay control
+function showLoader() {
+  const overlay = document.getElementById('loaderOverlay');
+  if (overlay) {
+    overlay.style.display = 'flex';
+  }
+}
+function hideLoader() {
+  const overlay = document.getElementById('loaderOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+}
+
 // Session parameter from query string.  If present, documents are loaded
 // from the corresponding session instead of global filters.  This allows
 // viewing a saved session of documents.  We parse it once on load.
@@ -355,6 +369,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('purgeDuplicatesBtn').addEventListener('click', async () => {
     if (!confirm('¿Deseas purgar los documentos duplicados? Esta acción eliminará documentos con el mismo proveedor, RUT, número de factura y artículos.')) return;
     try {
+      showLoader();
       const res = await fetch(`${API_BASE_URL}/documents/purge_duplicates`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al purgar duplicados');
@@ -366,6 +381,8 @@ document.addEventListener("DOMContentLoaded", () => {
       alert(data.message || 'Duplicados eliminados correctamente');
     } catch (err) {
       alert(err.message);
+    } finally {
+      hideLoader();
     }
   });
 
@@ -486,7 +503,20 @@ document.addEventListener("DOMContentLoaded", () => {
   // Export products summary to Excel
   document.getElementById("exportProductsBtn").addEventListener("click", async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/analytics/products/export`);
+      // Build query string based on current filters
+      const params = new URLSearchParams();
+      const start = document.getElementById("startMonth").value;
+      const end = document.getElementById("endMonth").value;
+      if (selectedSuppliers.length > 0 && selectedSuppliers.length < allSuppliers.length) {
+        params.append('supplier', selectedSuppliers.join(','));
+      }
+      if (selectedDocTypes.length > 0 && selectedDocTypes.length < allDocTypes.length) {
+        params.append('type', selectedDocTypes.join(','));
+      }
+      if (start) params.append('start', start);
+      if (end) params.append('end', end);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      const response = await fetch(`${API_BASE_URL}/analytics/products/export${query}`);
       if (!response.ok) {
         throw new Error("Error al exportar datos de productos");
       }
@@ -506,7 +536,20 @@ document.addEventListener("DOMContentLoaded", () => {
   // Export categories summary to Excel
   document.getElementById("exportCategoriesBtn").addEventListener("click", async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/analytics/categories/export`);
+      // Build query string based on current filters
+      const params = new URLSearchParams();
+      const start = document.getElementById("startMonth").value;
+      const end = document.getElementById("endMonth").value;
+      if (selectedSuppliers.length > 0 && selectedSuppliers.length < allSuppliers.length) {
+        params.append('supplier', selectedSuppliers.join(','));
+      }
+      if (selectedDocTypes.length > 0 && selectedDocTypes.length < allDocTypes.length) {
+        params.append('type', selectedDocTypes.join(','));
+      }
+      if (start) params.append('start', start);
+      if (end) params.append('end', end);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      const response = await fetch(`${API_BASE_URL}/analytics/categories/export${query}`);
       if (!response.ok) {
         throw new Error("Error al exportar categorías");
       }
@@ -526,9 +569,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // Apply filter button. When clicked, reload all data (documents, product chart, category chart)
   document.getElementById("applyFiltersBtn").addEventListener("click", () => {
     currentPage = 1;
-    loadDocuments();
-    loadProductChart();
-    loadCategoryChart();
+    // Show loader while filters apply
+    showLoader();
+    Promise.all([
+      loadDocuments(),
+      loadProductChart(),
+      loadCategoryChart(),
+    ]).finally(() => {
+      hideLoader();
+    });
   });
   // Chart type selector
   document.getElementById("productChartType").addEventListener("change", () => {
@@ -797,11 +846,17 @@ async function handleUpload(event) {
   progressContainer.style.display = 'none';
   // Reset file input
   fileInput.value = '';
-  // Reload documents and update charts after upload
-  await loadDocuments();
-  await loadSuppliers();
-  await loadProductChart();
-  await loadCategoryChart();
+  // After uploading files, show loader while refreshing data
+  showLoader();
+  try {
+    await loadDocuments();
+    await loadSuppliers();
+    await loadDocTypes();
+    await loadProductChart();
+    await loadCategoryChart();
+  } finally {
+    hideLoader();
+  }
 }
 
 /**
