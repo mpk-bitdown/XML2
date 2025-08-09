@@ -969,6 +969,16 @@ def categories_analytics() -> tuple[Dict[str, Any], int]:
         db.func.sum(Item.quantity).label("total_qty"),
         db.func.sum(Item.quantity * Item.price).label("total_value"),
     ).join(Document, Document.id == Item.document_id)
+    # Optional session filter
+    session_param = request.args.get("session") or request.headers.get("X-Session-Id")
+    if session_param:
+        try:
+            sid = int(session_param)
+            query = query.join(SessionDocument, SessionDocument.document_id == Document.id)
+            query = query.filter(SessionDocument.session_id == sid)
+        except Exception:
+            pass
+    
     # Date filters
     if start_param:
         try:
@@ -1965,3 +1975,67 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     # Bind to all interfaces so Railway can route traffic
     app.run(host="0.0.0.0", port=port)
+
+@app.route("/api/sessions/<int:sess_id>/finalize", methods=["POST"])
+def finalize_session(sess_id: int):
+    """
+    Mark the session as saved (only if it has at least one document).
+    Returns 400 if there is nothing to save.
+    """
+    current_email = request.headers.get("X-User-Email") or ""
+    current_user = User.query.filter_by(email=current_email).first()
+    if not current_user:
+        return {"error": "Usuario no autenticado"}, 401
+
+    sess = Session.query.get(sess_id)
+    if not sess:
+        return {"error": "Sesión no encontrada"}, 404
+
+    access_ids = [u.user_id for u in SessionUser.query.filter_by(session_id=sess.id).all()] + [sess.created_by_id]
+    if not (current_user.is_admin or current_user.id in access_ids):
+        return {"error": "No autorizado"}, 403
+
+    doc_ids = [sd.document_id for sd in SessionDocument.query.filter_by(session_id=sess.id).all()]
+    if not doc_ids:
+        return {"error": "No hay cambios para guardar"}, 400
+
+    sess.saved_at = datetime.utcnow()
+    db.session.commit()
+    return {"message": "Sesión guardada", "saved_at": sess.saved_at.isoformat()}, 200
+
+
+@app.route("/api/sessions/<int:sess_id>/purge", methods=["DELETE"])
+def purge_session(sess_id: int):
+    """
+    Delete all documents (and items) that belong to a session, and remove their uploaded files.
+    This does NOT delete the session itself.
+    """
+    current_email = request.headers.get("X-User-Email") or ""
+    current_user = User.query.filter_by(email=current_email).first()
+    if not current_user:
+        return {"error": "Usuario no autenticado"}, 401
+
+    sess = Session.query.get(sess_id)
+    if not sess:
+        return {"error": "Sesión no encontrada"}, 404
+
+    access_ids = [u.user_id for u in SessionUser.query.filter_by(session_id=sess.id).all()] + [sess.created_by_id]
+    if not (current_user.is_admin or current_user.id in access_ids):
+        return {"error": "No autorizado"}, 403
+
+    links = SessionDocument.query.filter_by(session_id=sess.id).all()
+    doc_ids = [l.document_id for l in links]
+    for doc_id in doc_ids:
+        d = Document.query.get(doc_id)
+        if not d:
+            continue
+        try:
+            os.remove(os.path.join(app.config["UPLOAD_FOLDER"], d.filename))
+        except FileNotFoundError:
+            pass
+        Item.query.filter_by(document_id=d.id).delete()
+        db.session.delete(d)
+    SessionDocument.query.filter_by(session_id=sess.id).delete()
+    db.session.commit()
+    return {"message": "Se purgaron los datos de la sesión"}, 200
+

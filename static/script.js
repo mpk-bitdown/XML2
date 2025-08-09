@@ -1805,3 +1805,66 @@ function currentSessionId() {
   const params = new URLSearchParams(location.search);
   return params.get('session') || localStorage.getItem('currentSessionId') || '';
 }
+
+
+// forceCreateNewSessionOnEntry
+document.addEventListener('DOMContentLoaded', async () => {
+  const email = localStorage.getItem('userEmail');
+  if (!email) return;
+  const params = new URLSearchParams(location.search);
+  let sid = params.get('session') || localStorage.getItem('currentSessionId');
+  if (!sid) {
+    const res = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-User-Email': email },
+      body: JSON.stringify({ name: `Sesión ${new Date().toLocaleString('es-CL')}`, document_ids: [] })
+    });
+    const data = await res.json();
+    if (res.ok && data.id) {
+      localStorage.setItem('currentSessionId', data.id);
+      const url = new URL(location.href);
+      url.searchParams.set('session', data.id);
+      location.replace(url.toString());
+    }
+  }
+});
+
+
+
+async function handleSaveSessionClick(){
+  const sid = currentSessionId();
+  const email = localStorage.getItem('userEmail')||'';
+  if (!sid) { alert('No hay sesión activa'); return; }
+  const res = await fetch(`/api/sessions/${sid}/finalize`, { method:'POST', headers:{ 'X-User-Email': email }});
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || 'No se pudo guardar'); return; }
+  alert('Sesión guardada');
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('button').forEach(b=>{
+    if (b.textContent && b.textContent.trim().toLowerCase()==='guardar') b.addEventListener('click', handleSaveSessionClick);
+  });
+});
+
+
+
+async function handlePurgeSession(){
+  const sid = currentSessionId();
+  const email = localStorage.getItem('userEmail')||'';
+  if (!sid) { alert('No hay sesión activa'); return; }
+  if (!confirm('Esto borrará todos los documentos y datos de esta sesión. ¿Continuar?')) return;
+  const res = await fetch(`/api/sessions/${sid}/purge`, { method:'DELETE', headers:{ 'X-User-Email': email }});
+  const data = await res.json();
+  if (!res.ok) { alert(data.error || 'No se pudo borrar'); return; }
+  // Clear UI
+  const tbody = document.querySelector('#documentsTableBody');
+  if (tbody) tbody.innerHTML = '';
+  if (window.myProductsChart) { myProductsChart.data.labels=[]; myProductsChart.data.datasets.forEach(d=>d.data=[]); myProductsChart.update(); }
+  if (window.myCategoriesChart) { myCategoriesChart.data.labels=[]; myCategoriesChart.data.datasets.forEach(d=>d.data=[]); myCategoriesChart.update(); }
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('button').forEach(b=>{
+    if (b.textContent && b.textContent.trim().toLowerCase().includes('borrar todo')) b.addEventListener('click', handlePurgeSession);
+  });
+});
+
