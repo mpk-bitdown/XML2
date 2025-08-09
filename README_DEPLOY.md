@@ -1,6 +1,3 @@
-# Despliegue con Docker (Alpine, sin apt-get)
-
-- Builder: Dockerfile (raíz del repo)
-- Clear cache & deploy en Railway si venías de un Dockerfile anterior.
-- Stage 1: Node (alpine) compila `deploy_ready_app/frontend` si existe.
-- Stage 2: Python (alpine) sirve Flask + Gunicorn sin `apt-get` (evita error 137).
+# Repo v49
+- Dockerfile asegura que siempre exista /build/deploy_ready_app/frontend/dist (aunque no haya frontend o falle el build), evitando el error de COPY not found.
+- Railway: Builder= Dockerfile, Clear cache & deploy.
