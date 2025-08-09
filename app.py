@@ -2039,3 +2039,39 @@ def purge_session(sess_id: int):
     db.session.commit()
     return {"message": "Se purgaron los datos de la sesión"}, 200
 
+
+
+@app.route("/api/sessions/<int:sess_id>/dedupe", methods=["POST"])
+def dedupe_session(sess_id: int):
+    """Remove duplicate documents inside a session.
+    Criteria: same supplier_id and invoice_number if present; otherwise same filename and size.
+    Keeps the most recent upload."""
+    sess = Session.query.get(sess_id)
+    if not sess:
+        return {"error": "Sesión no encontrada"}, 404
+    links = SessionDocument.query.filter_by(session_id=sess_id).all()
+    doc_ids = [l.document_id for l in links]
+    docs = Document.query.filter(Document.id.in_(doc_ids)).all()
+    def key(d):
+        base = (getattr(d, "supplier_id", None), getattr(d, "invoice_number", None))
+        if base[0] or base[1]:
+            return ("inv", base)
+        return ("file", (d.filename, d.size_kb))
+    seen = {}
+    removed = 0
+    for d in sorted(docs, key=lambda x: x.id):  # keep last by id
+        k = key(d)
+        if k in seen:
+            try:
+                os.remove(os.path.join(app.config["UPLOAD_FOLDER"], d.filename))
+            except FileNotFoundError:
+                pass
+            Item.query.filter_by(document_id=d.id).delete()
+            SessionDocument.query.filter_by(session_id=sess_id, document_id=d.id).delete()
+            db.session.delete(d)
+            removed += 1
+        else:
+            seen[k] = d.id
+    db.session.commit()
+    return {"removed": removed}, 200
+
