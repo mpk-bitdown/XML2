@@ -1943,3 +1943,18 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if (pb && !pb._b){ pb.addEventListener('click', handlePurgeSession); pb._b=true; }
 });
 
+
+
+function resetCharts(){
+  if (window.myProductsChart){ myProductsChart.data.labels=[]; myProductsChart.data.datasets.forEach(d=>d.data=[]); myProductsChart.update(); }
+  if (window.myCategoriesChart){ myCategoriesChart.data.labels=[]; myCategoriesChart.data.datasets.forEach(d=>d.data=[]); myCategoriesChart.update(); }
+}
+
+
+// Reset charts if session changed
+(function resetChartsOnSessionChange(){
+  const sid = currentSessionId();
+  const last = localStorage.getItem('lastViewedSessionId');
+  if (sid && last && sid !== last){ resetCharts(); }
+  if (sid) localStorage.setItem('lastViewedSessionId', sid);
+})();

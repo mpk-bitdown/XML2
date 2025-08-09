@@ -156,3 +156,17 @@ a:hover{ color:#bcd0ff }
 .pm-sidebar.collapsed .pm-sb-item .dot{margin:0}
 .pm-sidebar.collapsed .pm-sb-item span:not(.dot), 
 .pm-sidebar.collapsed .pm-sb-badge{display:none}
+
+
+/* compact header action buttons */
+.btn{font-size:14px; padding:8px 14px; border-radius:18px;}
+.btn.btn-warning{background:#f0b429; border:none; color:#111;}
+.btn.btn-danger{background:#d9534f; border:none; color:#fff;}
+.btn.btn-primary{background:#0dcaf0; border:none; color:#111;}
+.header-actions .btn{margin-left:8px}
+@media (min-width:1400px){ .btn{font-size:15px; padding:9px 16px;} }
+
+
+/* smooth sidebar toggle */
+.pm-sidebar{transition:width .2s ease, transform .2s ease;}
+.pm-main{transition:margin-left .2s ease;}

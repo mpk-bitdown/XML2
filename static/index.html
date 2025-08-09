@@ -229,9 +229,9 @@
               <div class="d-flex gap-2">
                 <button id="deleteAllBtn" class="btn btn-danger btn-sm">Borrar todo</button>
                 <button id="purgeDuplicatesBtn" class="btn btn-warning btn-sm">Purgar duplicados</button>
-                <button id="exportCsvBtn" class="btn btn-outline-light btn-sm">Descargar CSV</button>
+                <button id="exportCsvBtn" class="btn btn-outline-light btn-sm"><span class="header-actions">Descargar CSV</button>
 <button id="dedupeBtn" class="btn btn-warning ms-2">Purgar duplicados</button>
-<button id="purgeBtn" class="btn btn-danger ms-2">Borrar todo</button>
+<button id="purgeBtn" class="btn btn-danger ms-2">Borrar todo</button></span>
                 <!-- Button to save current documents as a session -->
                 <button id="saveSessionBtn" class="btn btn-info btn-sm">Guardar</button>
                 <!-- Button to start a new empty session -->
@@ -391,13 +391,7 @@
         <button class="pm-sidebar-toggle" onclick="document.getElementById('pmSidebar').classList.toggle('open')">☰ Menú</button>
 <button class="pm-sidebar-toggle" id="sidebarCollapseBtn">☰ Menú</button>
 <header>Selecciona una sesión
-<div class="top-chips" id="topChips">
-  <button class="chip" data-link="/users.html">Usuarios</button>
-  <button class="chip" data-link="/sessions.html">Sesiones</button>
-  <button class="chip" data-link="/categories.html">Categorías AI</button>
-  <span class="chip chip-muted" id="chipSessionName">Sesión</span>
-  <button class="chip chip-danger" id="logoutBtn">Cerrar sesión</button>
-</div>
+<div class="top-chips" id="topChips"><span class="chip chip-muted" id="chipSessionName">Sesión</span><button class="chip chip-danger" id="logoutBtn">Cerrar sesión</button></div>
 
 </header>
         <div class="pm-body">
