@@ -1444,12 +1444,15 @@ def sessions_api() -> Any:
     # POST
     data = request.get_json(silent=True) or {}
     document_ids = data.get("document_ids") or []
-    if not isinstance(document_ids, list) or not document_ids:
-        return {"error": "Se requieren los IDs de los documentos para crear una sesión"}, 400
-    # Resolve documents and ensure they exist
-    documents = Document.query.filter(Document.id.in_(document_ids)).all()
-    if not documents:
-        return {"error": "No se encontraron documentos válidos"}, 400
+    # document_ids must be a list if provided; an empty list is allowed (new session without docs)
+    if not isinstance(document_ids, list):
+        return {"error": "Formato de IDs de documentos no válido"}, 400
+    documents = []
+    if document_ids:
+        # Resolve documents and ensure they exist
+        documents = Document.query.filter(Document.id.in_(document_ids)).all()
+        if not documents:
+            return {"error": "No se encontraron documentos válidos"}, 400
     name = (data.get("name") or "").strip()
     if not name:
         name = f"Sesión {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
