@@ -572,17 +572,21 @@ def upload_document() -> tuple[Dict[str, Any], int]:
             session_id = int(session_id_header)
         elif session_id_form and str(session_id_form).isdigit():
             session_id = int(session_id_form)
-        if session_id:
+        if session_id and created_docs:
             sess = Session.query.get(session_id)
             if sess:
-                # If user header provided, verify access (creator or shared)
+                # Optionally enforce access with X-User-Email
                 current_email = request.headers.get("X-User-Email") or ""
                 allowed = True
                 if current_email:
                     current_user = User.query.filter_by(email=current_email).first()
                     if current_user:
                         shared_ids = [su.user_id for su in SessionUser.query.filter_by(session_id=session_id).all()]
-                        allowed = (current_user.is_admin or current_user.id == sess.created_by_id or current_user.id in shared_ids)
+                        allowed = (
+                            current_user.is_admin
+                            or current_user.id == sess.created_by_id
+                            or current_user.id in shared_ids
+                        )
                 if allowed:
                     existing = {sd.document_id for sd in SessionDocument.query.filter_by(session_id=session_id).all()}
                     for d in created_docs:
@@ -591,8 +595,7 @@ def upload_document() -> tuple[Dict[str, Any], int]:
                     db.session.commit()
     except Exception:
         # Don't fail upload if session linking has issues
-        db.session.rollback()
-db.session.commit()
+        app.logger.exception("Session link failed")
     if not created_docs:
         return {"error": "No valid files were uploaded."}, 400
     if len(created_docs) == 1:
