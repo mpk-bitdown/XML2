@@ -4,6 +4,14 @@
 // certain security restrictions on some systems.
 // When served via Flask on Railway, the frontend and backend live on the same domain.
 // Use a relative path for the API so that it works in production and locally.
+
+// ---- Dark theme defaults for Chart.js (Monday-like) ----
+if (window.Chart) {
+  Chart.defaults.color = 'rgba(231,236,245,0.9)';
+  Chart.defaults.borderColor = 'rgba(110, 128, 158, 0.35)';
+  Chart.defaults.plugins.legend.labels.color = 'rgba(231,236,245,0.9)';
+  Chart.defaults.plugins.title.color = 'rgba(231,236,245,0.85)';
+}
 const API_BASE_URL = "/api";
 
 // Arrays to hold supplier and document type filter state
@@ -1721,5 +1729,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (e) {
     console.error(e);
+  }
+});
+
+
+// ---- Always-in-session enforcement ----
+(function enforceSession() {
+  const params = new URLSearchParams(window.location.search);
+  let sid = params.get('session');
+  const saved = localStorage.getItem('currentSessionId');
+  if (!sid && saved) {
+    // keep query param consistent
+    window.history.replaceState({}, '', `/?session=${saved}`);
+    sid = saved;
+  }
+  if (!sid) {
+    // try to open picker (added previously)
+    if (typeof fetchSessionsForUser === 'function') {
+      fetchSessionsForUser().then(openSessionPicker).catch(() => {
+        openSessionPicker([]);
+      });
+    }
+  } else {
+    localStorage.setItem('currentSessionId', sid);
+  }
+})();
+
+document.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(location.search);
+  const sid = params.get('session') || localStorage.getItem('currentSessionId');
+  if (sid) {
+    const anchors = document.querySelectorAll('a[href="/"], a[href="/categories.html"], a[href="/sessions.html"], a[href="/users.html"]');
+    anchors.forEach(a => {
+      const url = new URL(a.getAttribute('href'), location.origin);
+      url.searchParams.set('session', sid);
+      a.setAttribute('href', url.pathname + '?' + url.searchParams.toString());
+    });
   }
 });

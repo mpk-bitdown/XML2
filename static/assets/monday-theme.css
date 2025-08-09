@@ -91,3 +91,8 @@ body{
 /* Links */
 a{ color:#9ab6ff }
 a:hover{ color:#bcd0ff }
+
+/* Ensure tables inherit dark surface background */
+.table{ background: var(--surface); }
+.table td, .table th{ border-color: var(--border); }
+.table thead th{ color: var(--text-primary); }
