@@ -1,3 +1,11 @@
+
+function currentSessionId(){ const p=new URLSearchParams(location.search); return p.get('session') || localStorage.getItem('currentSessionId') || ''; }
+async function apiFetch(url, opts={}){
+  const sid = currentSessionId();
+  const o = Object.assign({ headers:{} }, opts||{});
+  o.headers = Object.assign({}, o.headers, { 'X-Session-Id': sid, 'X-Live-View': 'true', 'Cache-Control': 'no-cache' });
+  return fetch(url + (url.includes('?')?'&':'?') + 'session=' + encodeURIComponent(sid), o);
+}
 // Script for document management and dashboard visualization
 
 // Base URL for backend API. Using 127.0.0.1 instead of localhost avoids
@@ -1958,3 +1966,19 @@ function resetCharts(){
   if (sid && last && sid !== last){ resetCharts(); }
   if (sid) localStorage.setItem('lastViewedSessionId', sid);
 })();
+
+function destroyCharts(){
+  if (window.myProductsChart && typeof window.myProductsChart.destroy === 'function'){ try{ window.myProductsChart.destroy(); }catch(e){} window.myProductsChart=null; }
+  if (window.myCategoriesChart && typeof window.myCategoriesChart.destroy === 'function'){ try{ window.myCategoriesChart.destroy(); }catch(e){} window.myCategoriesChart=null; }
+}
+function resetCharts(){
+  destroyCharts();
+  // If your code recreates charts lazily after fetch, nothing else needed here
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  const sid = currentSessionId();
+  const last = localStorage.getItem('lastViewedSessionId');
+  if (sid && last && sid !== last){ destroyCharts(); }
+  if (sid) localStorage.setItem('lastViewedSessionId', sid);
+});

@@ -2085,3 +2085,13 @@ def dedupe_session(sess_id: int):
     db.session.commit()
     return {"removed": removed}, 200
 
+
+
+from flask import make_response, jsonify
+
+def _no_cache_json(payload, status=200):
+    resp = make_response(jsonify(payload), status)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
