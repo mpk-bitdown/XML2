@@ -1013,6 +1013,8 @@ async function handleUpload(event) {
   progressBar.textContent = "0%";
   const totalFiles = files.length;
   let uploaded = 0;
+  // Keep track of newly created document IDs to optionally add to current session
+  const newDocIds = [];
   for (const file of files) {
     const formData = new FormData();
     // Use 'files' field to match backend logic
@@ -1022,11 +1024,18 @@ async function handleUpload(event) {
         method: 'POST',
         body: formData,
       });
-      // Attempt to parse JSON to detect errors
+      // Attempt to parse JSON to capture created documents
       let result;
       try { result = await response.json(); } catch (_) { result = {}; }
       if (!response.ok) {
         throw new Error(result.error || 'Error al subir los archivos.');
+      }
+      // result may be an object with 'documents' array or a list itself
+      const created = Array.isArray(result) ? result : result.documents;
+      if (Array.isArray(created)) {
+        created.forEach((doc) => {
+          if (doc && doc.id) newDocIds.push(doc.id);
+        });
       }
     } catch (err) {
       alert(err.message);
@@ -1043,6 +1052,22 @@ async function handleUpload(event) {
   progressContainer.style.display = 'none';
   // Reset file input
   fileInput.value = '';
+  // If a session is active, associate newly created documents to the session so they appear in the list
+  if (sessionParam && newDocIds.length > 0) {
+    try {
+      const userEmail = localStorage.getItem('userEmail') || '';
+      await fetch(`${API_BASE_URL}/sessions/${sessionParam}/add_documents`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Email': userEmail,
+        },
+        body: JSON.stringify({ document_ids: newDocIds }),
+      });
+    } catch (_) {
+      // Ignore errors; still attempt to reload documents
+    }
+  }
   // After uploading files, show loader while refreshing data
   showLoader();
   try {
