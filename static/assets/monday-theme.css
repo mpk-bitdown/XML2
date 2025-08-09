@@ -138,3 +138,21 @@ a:hover{ color:#bcd0ff }
   .pm-sidebar-toggle{display:inline-flex;}
 }
 .pm-sidebar-toggle{display:none;align-items:center;gap:8px;border:1px solid var(--border);background:var(--surface);color:var(--text-primary);border-radius:10px;padding:6px 10px;margin:8px;}
+
+
+/* chips on top-nav */
+.top-chips{display:flex; gap:14px; align-items:center; flex-wrap:wrap}
+.chip{border:1px solid var(--border); background:transparent; color:var(--text-primary); border-radius:28px; padding:8px 16px; cursor:pointer}
+.chip:hover{background:rgba(255,255,255,.06)}
+.chip-muted{background:rgba(255,255,255,.08); color:#fff; font-weight:700}
+.chip-danger{border-color:#ff8a8a; color:#ffb5b5}
+
+
+/* sidebar collapse */
+.pm-sidebar.collapsed{width:64px}
+.pm-main.with-collapsed{margin-left:64px}
+.pm-sidebar .pm-sb-section{opacity:.0; height:0; overflow:hidden; margin:0}
+.pm-sidebar.collapsed .pm-sb-item{gap:0; justify-content:center}
+.pm-sidebar.collapsed .pm-sb-item .dot{margin:0}
+.pm-sidebar.collapsed .pm-sb-item span:not(.dot), 
+.pm-sidebar.collapsed .pm-sb-badge{display:none}

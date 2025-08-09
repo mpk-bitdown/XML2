@@ -1886,3 +1886,60 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
 });
 
+
+
+// ---- Top chips and sidebar collapse ----
+function currentSessionId(){ const p=new URLSearchParams(location.search); return p.get('session')||localStorage.getItem('currentSessionId')||''; }
+
+function applySidebarCollapsed(){
+  const sb=document.getElementById('pmSidebar'); const main=document.querySelector('.pm-main');
+  const collapsed = localStorage.getItem('sidebarCollapsed')==='1';
+  if (sb){ sb.classList.toggle('collapsed', collapsed); }
+  if (main){ main.classList.toggle('with-collapsed', collapsed); }
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  // Collapse toggle
+  const btn = document.getElementById('sidebarCollapseBtn');
+  if (btn){
+    btn.addEventListener('click', ()=>{
+      const collapsed = !(localStorage.getItem('sidebarCollapsed')==='1');
+      localStorage.setItem('sidebarCollapsed', collapsed?'1':'0');
+      applySidebarCollapsed();
+    });
+  }
+  applySidebarCollapsed();
+
+  // Top chips: fill and navigate
+  const sid = currentSessionId();
+  const chips = document.getElementById('topChips');
+  if (chips){
+    chips.querySelectorAll('[data-link]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const url = new URL(el.getAttribute('data-link'), location.origin);
+        if (sid) url.searchParams.set('session', sid);
+        location.href = url.pathname + (url.search?url.search:(sid?`?session=${sid}`:''));
+      });
+    });
+    const chipSess = document.getElementById('chipSessionName');
+    if (chipSess && sid) chipSess.textContent = `Sesión ${sid}`;
+  }
+  const logout = document.getElementById('logoutBtn');
+  if (logout){
+    logout.addEventListener('click', ()=>{
+      localStorage.removeItem('userEmail');
+      location.href = '/login.html';
+    });
+  }
+});
+
+
+
+// bind action buttons on documents header
+document.addEventListener('DOMContentLoaded', ()=>{
+  const dd = document.getElementById('dedupeBtn');
+  if (dd && !dd._b){ dd.addEventListener('click', handleDedupeSession); dd._b=true; }
+  const pb = document.getElementById('purgeBtn');
+  if (pb && !pb._b){ pb.addEventListener('click', handlePurgeSession); pb._b=true; }
+});
+
