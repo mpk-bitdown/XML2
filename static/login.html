@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Iniciar sesión</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/assets/bootstrap.min.css" />
+<link rel="stylesheet" href="/static/assets/monday-theme.css" />
+    <style>
+      :root {
+        --primary: #3b7ddd;
+        --background: #0d1b2a;
+        --surface: #1e213a;
+        --surface-light: #262b44;
+        --text-primary: #f5f6fa;
+        --text-secondary: #a5a8b6;
+      }
+      body { background-color: var(--background); color: var(--text-primary); }
+      .login-card {
+        max-width: 420px;
+        margin: 80px auto;
+        background-color: var(--surface);
+        color: var(--text-primary);
+      }
+      .form-control { background-color: var(--surface-light); color: var(--text-primary); border-color: var(--surface-light); }
+      .form-control::placeholder { color: var(--text-secondary); }
+      .btn-primary { background-color: var(--primary); border-color: var(--primary); }
+    </style>
+  </head>
+  <body>
+    <div class="login-card card shadow-sm">
+      <div class="card-body">
+        <h3 class="card-title mb-4">Iniciar sesión</h3>
+        <form id="loginForm" novalidate>
+          <div class="mb-3">
+            <label for="loginEmail" class="form-label">Correo electrónico</label>
+            <input type="email" class="form-control" id="loginEmail" required />
+          </div>
+          <div class="mb-3">
+            <label for="loginPassword" class="form-label">Contraseña</label>
+            <input type="password" class="form-control" id="loginPassword" required />
+          </div>
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary">Ingresar</button>
+          </div>
+        </form>
+        <div id="loginError" class="text-danger mt-2"></div>
+      </div>
+    </div>
+    <script src="/static/login.js"></script>
+  </body>
+</html>
