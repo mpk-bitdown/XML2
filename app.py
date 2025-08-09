@@ -73,7 +73,7 @@ class Supplier(db.Model):
         return {"id": self.id, "rut": self.rut, "name": self.name}
 
 
-class Document(db.Model):
+class Document(upload_date=datetime.utcnow(), db.Model):
     """Represents an uploaded document (PDF or XML) or DTE envelope."""
 
     __tablename__ = "documents"
@@ -108,7 +108,7 @@ class Document(db.Model):
             "pages": self.pages,
             "xml_root": self.xml_root,
             "size_bytes": self.size_bytes,
-            "upload_date": self.upload_date.isoformat(),
+            "upload_date": (self.upload_date.isoformat() if self.upload_date else None),
             "doc_date": self.doc_date.isoformat() if self.doc_date else None,
             "invoice_number": self.invoice_number,
             "invoice_address": self.invoice_address,
@@ -192,7 +192,7 @@ class Session(db.Model):
     created_by = db.relationship("User", backref="created_sessions")
 
 
-class SessionDocument(db.Model):
+class SessionDocument(upload_date=datetime.utcnow(), db.Model):
     """
     Association table linking sessions with documents.  Each entry references
     a session and a document.  Deleting a session will cascade to delete
@@ -501,7 +501,7 @@ def upload_document() -> tuple[Dict[str, Any], int]:
                     }
                     if tipo_text:
                         doc_type = tipo_map.get(tipo_text.strip(), tipo_text.strip())
-                    doc = Document(
+                    doc = Document(upload_date=datetime.utcnow(), 
                         filename=filename,
                         filetype=ext,
                         pages=None,
@@ -541,7 +541,7 @@ def upload_document() -> tuple[Dict[str, Any], int]:
                         )
                         db.session.add(item)
             except Exception:
-                doc = Document(
+                doc = Document(upload_date=datetime.utcnow(), 
                     filename=filename,
                     filetype=ext,
                     pages=None,
@@ -552,7 +552,7 @@ def upload_document() -> tuple[Dict[str, Any], int]:
                 db.session.add(doc)
                 created_docs.append(doc)
         else:
-            doc = Document(
+            doc = Document(upload_date=datetime.utcnow(), 
                 filename=filename,
                 filetype=ext,
                 pages=meta.get("pages"),
@@ -591,7 +591,7 @@ def upload_document() -> tuple[Dict[str, Any], int]:
                     existing = {sd.document_id for sd in SessionDocument.query.filter_by(session_id=session_id).all()}
                     for d in created_docs:
                         if d.id not in existing:
-                            db.session.add(SessionDocument(session_id=session_id, document_id=d.id))
+                            db.session.add(SessionDocument(upload_date=datetime.utcnow(), session_id=session_id, document_id=d.id))
                     db.session.commit()
     except Exception:
         # Don't fail upload if session linking has issues
@@ -1490,7 +1490,7 @@ def sessions_api() -> Any:
     db.session.flush()  # obtain session id
     # Link documents to session (if any)
     for doc in documents:
-        db.session.add(SessionDocument(session_id=session_obj.id, document_id=doc.id))
+        db.session.add(SessionDocument(upload_date=datetime.utcnow(), session_id=session_obj.id, document_id=doc.id))
     # Always include creator in access list
     user_ids = []
     for email in user_emails:
@@ -1766,7 +1766,7 @@ def add_documents_to_session(sess_id: int) -> Any:
         if doc_id and doc_id not in existing_ids:
             # Verify document exists
             if Document.query.get(doc_id):
-                sd = SessionDocument(session_id=sess.id, document_id=doc_id)
+                sd = SessionDocument(upload_date=datetime.utcnow(), session_id=sess.id, document_id=doc_id)
                 db.session.add(sd)
                 added += 1
     db.session.commit()
