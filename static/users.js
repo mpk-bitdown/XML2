@@ -15,8 +15,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   // Populate nav bar user info
   document.getElementById('navUserEmail').textContent = email;
-  // Show users link for admin
-  document.getElementById('navUsersLink').style.display = 'inline-block';
   // Logout
   document.getElementById('logoutBtn').addEventListener('click', () => {
     localStorage.removeItem('userEmail');

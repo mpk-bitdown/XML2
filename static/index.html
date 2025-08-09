@@ -106,8 +106,8 @@
     </style>
   </head>
   <body>
-    <!-- Navigation bar with logo and user info -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+    <!-- Top bar with logo and user info -->
+    <nav class="navbar navbar-expand-lg mb-0">
       <div class="container-fluid">
         <div class="d-flex align-items-center">
           <!-- Logo clickable: wrap in anchor to navigate to dashboard root -->
@@ -118,20 +118,24 @@
         </div>
         <!-- User section (updated dynamically in script.js) -->
         <div class="ms-auto d-flex align-items-center gap-2">
-          <span id="navUserEmail" class="text-white fw-semibold"></span>
-          <!-- Link to admin user management (only visible for admins) -->
-          <a id="navUsersLink" href="/users.html" class="btn btn-outline-light btn-sm" style="display: none;">Usuarios</a>
-          <!-- Link to sessions page (visible to all users) -->
-          <a id="navSessionsLink" href="/sessions.html" class="btn btn-outline-light btn-sm">Sesiones</a>
-          <!-- Link to categories AI page (visible to all users) -->
-          <a id="navCategoriesLink" href="/categories.html" class="btn btn-outline-light btn-sm">Categorías AI</a>
-          <!-- Label showing current session name when viewing a saved session -->
+          <span id="navUserEmail" class="fw-semibold"></span>
           <span id="currentSessionLabel" class="badge bg-light text-dark" style="display: none; font-size: 0.75rem;"></span>
           <button id="logoutBtn" class="btn btn-outline-light btn-sm" type="button" style="display: none;">Cerrar sesión</button>
         </div>
       </div>
     </nav>
-    <div class="container-fluid px-4">
+    <div class="d-flex">
+      <!-- Sidebar navigation -->
+      <nav id="sideNav" class="p-3" style="width: 220px; background-color: var(--surface-light);">
+        <ul class="nav flex-column gap-2">
+          <li class="nav-item"><a href="/" class="nav-link text-white">Dashboard</a></li>
+          <li class="nav-item"><a href="/categories.html" class="nav-link text-white">Categorías AI</a></li>
+          <li class="nav-item"><a href="/sessions.html" class="nav-link text-white">Sesiones</a></li>
+          <li class="nav-item"><a id="sideUsersLink" href="/users.html" class="nav-link text-white" style="display: none;">Usuarios</a></li>
+        </ul>
+      </nav>
+      <div class="flex-grow-1 px-4">
+    <div class="container-fluid px-0">
       <!-- Global filter controls (applied to all tables and charts) -->
       <div class="row gy-3 mb-4" id="globalFilters">
         <!-- Supplier multi-select filter -->
@@ -234,7 +238,7 @@
                 <tbody id="docs-body"></tbody>
               </table>
             </div>
-            <!-- Pagination controls -->
+    <!-- Pagination controls -->
             <div class="d-flex justify-content-between align-items-center p-2">
               <div>
                 Mostrar
@@ -255,7 +259,7 @@
           </div>
         </div>
       </div>
-      <!-- Analytics and charts section -->
+    <!-- Analytics and charts section -->
       <div class="row gy-4 mt-4">
         <!-- Product summary card -->
         <div class="col-12">
@@ -351,6 +355,9 @@
         </div>
       </div>
     </div>
+    </div> <!-- close container-fluid px-0 -->
+    </div> <!-- close flex-grow-1 -->
+    </div> <!-- close d-flex -->
     <!-- Local Chart.js copy to ensure availability offline -->
     <!-- Loader overlay shown during asynchronous operations -->
     <div id="loaderOverlay">

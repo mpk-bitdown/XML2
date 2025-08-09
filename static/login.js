@@ -20,8 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Save user info in localStorage
       localStorage.setItem('userEmail', email);
       localStorage.setItem('isAdmin', data.is_admin ? 'true' : 'false');
-      // Redirect to main page
-      window.location.href = '/';
+      // Redirect to session selection page after successful login
+      window.location.href = '/session_select.html';
     } catch (err) {
       errorDiv.textContent = err.message;
     }

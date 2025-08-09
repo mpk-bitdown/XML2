@@ -27,40 +27,48 @@
     </style>
   </head>
   <body>
-    <!-- Navigation bar copied from index -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-      <div class="container-fluid">
-        <div class="d-flex align-items-center">
-          <a href="/" class="d-flex align-items-center text-decoration-none">
-            <img src="/static/logo/logo.png" height="40" alt="Logo" class="me-2" />
-          </a>
-          <span class="navbar-brand mb-0 h1">Gestión Documental y Dashboards</span>
-        </div>
+    <!-- Top navigation bar -->
+    <nav class="navbar mb-0" style="background-color: var(--surface);">
+      <div class="container-fluid d-flex align-items-center">
+        <a href="/" class="d-flex align-items-center text-decoration-none">
+          <img src="/static/logo/logo.png" height="40" alt="Logo" class="me-2" />
+        </a>
+        <span class="navbar-brand mb-0 h1">Gestión Documental</span>
         <div class="ms-auto d-flex align-items-center gap-2">
-          <span id="navUserEmail" class="text-white fw-semibold"></span>
-          <a id="navUsersLink" href="/users.html" class="btn btn-outline-light btn-sm" style="display: none;">Usuarios</a>
-          <a id="navSessionsLink" href="/sessions.html" class="btn btn-outline-light btn-sm">Sesiones</a>
-          <a id="navCategoriesLink" href="/categories.html" class="btn btn-outline-light btn-sm">Categorías AI</a>
+          <span id="navUserEmail" class="fw-semibold"></span>
           <button id="logoutBtn" class="btn btn-outline-light btn-sm" type="button" style="display: none;">Cerrar sesión</button>
         </div>
       </div>
     </nav>
-    <div class="container-fluid px-4">
-      <h3 class="mb-3">Sesiones guardadas</h3>
-      <div class="table-responsive">
-        <table class="table table-striped table-hover">
-          <thead class="table-light">
-            <tr>
-              <th>Nombre</th>
-              <th>Fecha</th>
-              <th>Creado por</th>
-              <th>Documentos</th>
-              <th>Compartido con</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="sessionsBody"></tbody>
-        </table>
+    <div class="d-flex">
+      <!-- Left side menu -->
+      <nav id="sideNav" class="p-3" style="width: 220px; background-color: var(--surface-light);">
+        <ul class="nav flex-column gap-2">
+          <li class="nav-item"><a href="/" class="nav-link text-white">Dashboard</a></li>
+          <li class="nav-item"><a href="/categories.html" class="nav-link text-white">Categorías AI</a></li>
+          <li class="nav-item"><a href="/sessions.html" class="nav-link text-white active">Sesiones</a></li>
+          <li class="nav-item"><a id="sideUsersLink" href="/users.html" class="nav-link text-white" style="display: none;">Usuarios</a></li>
+        </ul>
+      </nav>
+      <div class="flex-grow-1 px-4">
+        <div class="container-fluid px-4">
+          <h3 class="mb-3">Sesiones guardadas</h3>
+          <div class="table-responsive">
+            <table class="table table-striped table-hover">
+              <thead class="table-light">
+                <tr>
+                  <th>Nombre</th>
+                  <th>Fecha</th>
+                  <th>Creado por</th>
+                  <th>Documentos</th>
+                  <th>Compartido con</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="sessionsBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
     <script src="/static/sessions.js"></script>

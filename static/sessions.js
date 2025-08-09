@@ -10,8 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Update nav bar user and admin link
   const navEmailEl = document.getElementById('navUserEmail');
   if (navEmailEl) navEmailEl.textContent = userEmail;
-  const usersLink = document.getElementById('navUsersLink');
-  if (usersLink) usersLink.style.display = isAdmin ? 'inline-block' : 'none';
+  const usersLink = document.getElementById('sideUsersLink');
+  if (usersLink) usersLink.style.display = isAdmin ? 'block' : 'none';
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.style.display = 'inline-block';

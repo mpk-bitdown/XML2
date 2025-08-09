@@ -341,6 +341,9 @@ document.addEventListener("DOMContentLoaded", () => {
   if (navEmailEl) navEmailEl.textContent = userEmail;
   const usersLink = document.getElementById('navUsersLink');
   if (usersLink) usersLink.style.display = isAdmin ? 'inline-block' : 'none';
+  // Also update users link in side navigation
+  const sideUsersLink = document.getElementById('sideUsersLink');
+  if (sideUsersLink) sideUsersLink.style.display = isAdmin ? 'block' : 'none';
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
     logoutBtn.style.display = 'inline-block';
@@ -349,6 +352,11 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.removeItem('isAdmin');
       window.location.href = '/login.html';
     });
+  }
+  // If not viewing a session, redirect to session selection page
+  if (!sessionParam) {
+    window.location.href = '/session_select.html';
+    return;
   }
   // Display current session name if applicable
   displayCurrentSession();

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seleccionar sesión</title>
+  <link rel="stylesheet" href="/static/assets/bootstrap.min.css">
+  <style>
+    :root {
+      --primary: #3b7ddd;
+      --background: #0d1b2a;
+      --surface: #1e213a;
+      --surface-light: #262b44;
+      --surface-hover: #2f365a;
+      --text-primary: #f5f6fa;
+      --text-secondary: #a5a8b6;
+    }
+    body { background-color: var(--background); color: var(--text-primary); }
+    .navbar { background-color: var(--surface); }
+    .navbar .navbar-brand { color: var(--text-primary) !important; }
+    .session-card { background-color: var(--surface); border: none; }
+    .session-card .card-header { background-color: var(--primary); color: #fff; }
+    .btn-primary { background-color: var(--primary); border-color: var(--primary); }
+    .btn-secondary { background-color: #6c757d; border-color: #6c757d; }
+    .form-control { background-color: var(--surface-light); color: var(--text-primary); border-color: var(--surface-hover); }
+    .form-control::placeholder { color: var(--text-secondary); }
+    .modal-content { background-color: var(--surface); color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <!-- Simple navbar with logo -->
+  <nav class="navbar navbar-expand-lg mb-4">
+    <div class="container-fluid">
+      <a href="/" class="navbar-brand d-flex align-items-center">
+        <img src="/static/logo/logo.png" alt="Logo" height="40" class="me-2" />
+        Gestión Documental
+      </a>
+    </div>
+  </nav>
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-8">
+        <div class="card session-card shadow-sm">
+          <div class="card-header">Selecciona una sesión o crea una nueva</div>
+          <div class="card-body">
+            <div id="sessionsList" class="mb-3">Cargando sesiones...</div>
+            <button id="newSessionBtn" class="btn btn-primary">Crear nueva sesión</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Modal to create new session -->
+  <div class="modal" id="createSessionModal" style="display:none;">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Crear nueva sesión</h5>
+          <button type="button" class="btn-close" id="createModalClose"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="newSessionName" class="form-label">Nombre de la sesión (opcional)</label>
+            <input type="text" class="form-control" id="newSessionName" placeholder="Nombre de la sesión" />
+          </div>
+          <div id="sessionUsersList" class="mb-3">Cargando usuarios...</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="createSessionCancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="createSessionSave">Crear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="/static/session_select.js"></script>
+</body>
+</html>
