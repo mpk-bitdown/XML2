@@ -1868,3 +1868,21 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
 });
 
+
+
+// Sidebar nav: preserve current session id
+document.addEventListener('DOMContentLoaded', ()=>{
+  const sid = (new URLSearchParams(location.search)).get('session') || localStorage.getItem('currentSessionId');
+  document.querySelectorAll('.pm-sb-item[data-link]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const url = new URL(el.getAttribute('data-link'), location.origin);
+      if (sid) url.searchParams.set('session', sid);
+      location.href = url.pathname + (url.search ? url.search : (sid?`?session=${sid}`:''));
+    });
+  });
+  const newLink = document.getElementById('newSessionLink');
+  if (newLink) newLink.addEventListener('click', ()=>{
+    if (typeof createAndGoNewSession === 'function') createAndGoNewSession();
+  });
+});
+

@@ -37,6 +37,24 @@
     </style>
   </head>
   <body>
+<div class="pm-layout">
+
+<aside class="pm-sidebar" id="pmSidebar">
+  <div class="pm-sb-section">Inicio</div>
+  <div class="pm-sb-item" data-link="/"><span class="dot"></span>Dashboard</div>
+
+  <div class="pm-sb-section">Sesiones</div>
+  <div class="pm-sb-item" data-link="/sessions.html"><span class="dot"></span>Sesiones</div>
+  <div class="pm-sb-item" id="newSessionLink"><span class="dot"></span>Nueva sesión<span class="pm-sb-badge">Nuevo</span></div>
+
+  <div class="pm-sb-section">Análisis</div>
+  <div class="pm-sb-item" data-link="/categories.html"><span class="dot"></span>Categorías AI</div>
+
+  <div class="pm-sb-section">Usuarios</div>
+  <div class="pm-sb-item" data-link="/users.html"><span class="dot"></span>Usuarios</div>
+</aside>
+<div class="pm-main">
+
     <!-- Navigation bar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
       <div class="container-fluid">
@@ -102,5 +120,6 @@
       </div>
     </div>
     <script src="/static/categories.js"></script>
-  </body>
+  </div>
+</body>
 </html>

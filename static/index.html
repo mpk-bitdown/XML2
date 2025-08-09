@@ -110,6 +110,24 @@
     </style>
   </head>
   <body>
+<div class="pm-layout">
+
+<aside class="pm-sidebar" id="pmSidebar">
+  <div class="pm-sb-section">Inicio</div>
+  <div class="pm-sb-item" data-link="/"><span class="dot"></span>Dashboard</div>
+
+  <div class="pm-sb-section">Sesiones</div>
+  <div class="pm-sb-item" data-link="/sessions.html"><span class="dot"></span>Sesiones</div>
+  <div class="pm-sb-item" id="newSessionLink"><span class="dot"></span>Nueva sesión<span class="pm-sb-badge">Nuevo</span></div>
+
+  <div class="pm-sb-section">Análisis</div>
+  <div class="pm-sb-item" data-link="/categories.html"><span class="dot"></span>Categorías AI</div>
+
+  <div class="pm-sb-section">Usuarios</div>
+  <div class="pm-sb-item" data-link="/users.html"><span class="dot"></span>Usuarios</div>
+</aside>
+<div class="pm-main">
+
     <!-- Navigation bar with logo and user info -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
       <div class="container-fluid">
@@ -368,7 +386,8 @@
   <!-- Session picker modal -->
     <div id="sessionPickerBackdrop" class="pm-modal-backdrop">
       <div class="pm-modal">
-        <header>Selecciona una sesión</header>
+        <button class="pm-sidebar-toggle" onclick="document.getElementById('pmSidebar').classList.toggle('open')">☰ Menú</button>
+<header>Selecciona una sesión</header>
         <div class="pm-body">
           <p class="small-muted mb-2">Elige con qué sesión quieres trabajar. Si no tienes ninguna, crea una nueva.</p>
           <div id="sessionPickerList" class="pm-list mb-3"></div>
@@ -382,6 +401,7 @@
         </footer>
       </div>
     </div>
-  </body>
+  </div>
+</body>
 </html>
 </html>

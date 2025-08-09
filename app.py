@@ -948,6 +948,17 @@ def products_chart() -> tuple[Dict[str, Any], int]:
 
 @app.route("/api/analytics/categories", methods=["GET"])
 def categories_analytics() -> tuple[Dict[str, Any], int]:
+
+    # no_docs_check_done
+    _sid = request.args.get("session") or request.headers.get("X-Session-Id")
+    try:
+        _sid = int(_sid) if _sid else None
+    except Exception:
+        _sid = None
+    if _sid:
+        if SessionDocument.query.filter_by(session_id=_sid).count() == 0:
+            return {"labels": [], "series": []}, 200
+    
     """
     Compute product categories and aggregate quantities and values per category.
 
@@ -2002,7 +2013,6 @@ def finalize_session(sess_id: int):
     sess.saved_at = datetime.utcnow()
     db.session.commit()
     return {"message": "Sesión guardada", "saved_at": sess.saved_at.isoformat()}, 200
-
 
 @app.route("/api/sessions/<int:sess_id>/purge", methods=["DELETE"])
 def purge_session(sess_id: int):
