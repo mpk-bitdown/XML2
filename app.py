@@ -2095,3 +2095,25 @@ def _no_cache_json(payload, status=200):
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
     return resp
+
+
+# --- SPA Front (static/app) integration ---
+from flask import send_from_directory
+import os
+
+@app.route('/')
+@app.route('/dashboard')
+@app.route('/categorias')
+@app.route('/sesiones')
+def spa_index():
+    spa_dir = os.path.join(app.static_folder, 'app')
+    index_path = os.path.join(spa_dir, 'index.html')
+    if os.path.exists(index_path):
+        return send_from_directory(spa_dir, 'index.html')
+    # fallback a la app clásica si aún no se construye el front
+    return render_template('index.html') if 'render_template' in globals() else ('Front no construido', 200)
+
+@app.route('/app/<path:path>')
+def spa_assets(path):
+    spa_dir = os.path.join(app.static_folder, 'app')
+    return send_from_directory(spa_dir, path)
