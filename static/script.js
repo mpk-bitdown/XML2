@@ -1020,6 +1020,7 @@ async function handleUpload(event) {
     try {
       const response = await fetch(`${API_BASE_URL}/documents`, {
         method: 'POST',
+        headers: { 'X-Session-Id': (new URLSearchParams(location.search).get('session') || localStorage.getItem('currentSessionId') || '') , 'X-User-Email': (localStorage.getItem('userEmail')||'') },
         body: formData,
       });
       // Attempt to parse JSON to detect errors

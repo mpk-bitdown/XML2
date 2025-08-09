@@ -562,7 +562,37 @@ def upload_document() -> tuple[Dict[str, Any], int]:
             )
             db.session.add(doc)
             created_docs.append(doc)
-    db.session.commit()
+    
+    # Optionally link created documents to a session if provided
+    try:
+        session_id_header = request.headers.get("X-Session-Id")
+        session_id_form = request.form.get("session")
+        session_id = None
+        if session_id_header and str(session_id_header).isdigit():
+            session_id = int(session_id_header)
+        elif session_id_form and str(session_id_form).isdigit():
+            session_id = int(session_id_form)
+        if session_id:
+            sess = Session.query.get(session_id)
+            if sess:
+                # If user header provided, verify access (creator or shared)
+                current_email = request.headers.get("X-User-Email") or ""
+                allowed = True
+                if current_email:
+                    current_user = User.query.filter_by(email=current_email).first()
+                    if current_user:
+                        shared_ids = [su.user_id for su in SessionUser.query.filter_by(session_id=session_id).all()]
+                        allowed = (current_user.is_admin or current_user.id == sess.created_by_id or current_user.id in shared_ids)
+                if allowed:
+                    existing = {sd.document_id for sd in SessionDocument.query.filter_by(session_id=session_id).all()}
+                    for d in created_docs:
+                        if d.id not in existing:
+                            db.session.add(SessionDocument(session_id=session_id, document_id=d.id))
+                    db.session.commit()
+    except Exception:
+        # Don't fail upload if session linking has issues
+        db.session.rollback()
+db.session.commit()
     if not created_docs:
         return {"error": "No valid files were uploaded."}, 400
     if len(created_docs) == 1:
