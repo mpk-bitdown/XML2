@@ -11,7 +11,8 @@
     <link rel="stylesheet" href="/static/assets/bootstrap.min.css" />
     <style>
       :root {
-        --primary: #3b7ddd;
+        /* Accent colour toned down to better match the dark theme (avoid bright blues) */
+        --primary: #4a6fa5;
         --accent: #28a745;
         --danger: #dc3545;
         --background: #0d1b2a;
@@ -38,9 +39,10 @@
         background-color: var(--surface);
         color: var(--text-primary);
       }
+      /* Use a subdued header colour to avoid harsh contrast */
       .card-header {
-        background-color: var(--primary);
-        color: #fff;
+        background-color: var(--surface-light);
+        color: var(--text-primary);
       }
       .table {
         color: var(--text-primary);

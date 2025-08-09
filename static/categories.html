@@ -7,7 +7,8 @@
     <link rel="stylesheet" href="/static/assets/bootstrap.min.css" />
     <style>
       :root {
-        --primary: #3b7ddd;
+        /* Match the accent colour with the dark theme */
+        --primary: #4a6fa5;
         --background: #0d1b2a;
         --surface: #1e213a;
         --surface-light: #262b44;
@@ -24,12 +25,15 @@
       .table-striped tbody tr:nth-of-type(odd) { background-color: var(--surface-light); }
       .table-hover tbody tr:hover { background-color: var(--surface-hover); }
       .btn { color: var(--text-primary); }
+      /* Use toned down accent colours for buttons */
       .btn-primary { background-color: var(--primary); border-color: var(--primary); }
-      .btn-info { background-color: #17a2b8; border-color: #17a2b8; }
-      .btn-secondary { background-color: #6c757d; border-color: #6c757d; }
+      .btn-info { background-color: #2f71b7; border-color: #2f71b7; }
+      .btn-secondary { background-color: #5a6273; border-color: #5a6273; }
       .form-control, .form-select { background-color: var(--surface-light); color: var(--text-primary); border-color: var(--surface-hover); }
       .form-control::placeholder { color: var(--text-secondary); }
       .modal-content { background-color: var(--surface); color: var(--text-primary); }
+      /* Card header colour subdued */
+      .card-header { background-color: var(--surface-light); color: var(--text-primary); }
     </style>
   </head>
   <body>

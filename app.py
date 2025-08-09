@@ -319,6 +319,13 @@ def serve_users_page() -> Any:
     """Serve the admin users management page."""
     return app.send_static_file("users.html")
 
+# Serve the session selection page used after login
+@app.route("/session_select")
+@app.route("/session_select.html")
+def serve_session_select_page() -> Any:
+    """Serve the page where users choose or create a session after login."""
+    return app.send_static_file("session_select.html")
+
 
 # Serve sessions and categories pages
 @app.route("/sessions")
