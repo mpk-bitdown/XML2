@@ -1768,3 +1768,40 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+
+// ----- Login -> Session Picker -> Work flow -----
+document.addEventListener('DOMContentLoaded', async () => {
+  const userEmail = localStorage.getItem('userEmail');
+  if (!userEmail) {
+    // Not logged: go to login
+    window.location.href = '/login.html';
+    return;
+  }
+  const params = new URLSearchParams(location.search);
+  let sid = params.get('session') || localStorage.getItem('currentSessionId');
+  if (!sid) {
+    // Force session selection
+    const sessions = await fetchSessionsForUser().catch(() => []);
+    openSessionPicker(sessions);
+  } else {
+    localStorage.setItem('currentSessionId', sid);
+  }
+});
+
+// Attach 'Nueva sesión' to open picker focused on creation
+(function attachNewSessionBtn(){
+  const btn = document.getElementById('newSessionBtn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const userEmail = localStorage.getItem('userEmail') || '';
+    if (!userEmail) { window.location.href = '/login.html'; return; }
+    const sessions = await fetchSessionsForUser().catch(() => []);
+    openSessionPicker(sessions);
+  });
+})();
+
+function currentSessionId() {
+  const params = new URLSearchParams(location.search);
+  return params.get('session') || localStorage.getItem('currentSessionId') || '';
+}

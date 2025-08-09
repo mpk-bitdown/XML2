@@ -96,3 +96,22 @@ a:hover{ color:#bcd0ff }
 .table{ background: var(--surface); }
 .table td, .table th{ border-color: var(--border); }
 .table thead th{ color: var(--text-primary); }
+
+
+/* Stronger table header styling to avoid white-on-white */
+.table thead th, .table thead td{
+  background: var(--surface-light) !important;
+  color: var(--text-primary) !important;
+  border-bottom: 1px solid var(--border);
+}
+.table tbody td{
+  color: var(--text-primary);
+  background: var(--surface) !important;
+}
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+  background: var(--surface-light) !important;
+}
+
+/* Pagination + badges tint */
+.page-link{ background: var(--surface-light); color: var(--text-primary); border-color: var(--border) }
+.page-link:hover{ background: var(--surface-hover); color: var(--text-primary) }

@@ -1,3 +1,5 @@
+/* Dark theme defaults for Chart.js (categories) */
+if (window.Chart) { Chart.defaults.color='rgba(231,236,245,0.9)'; Chart.defaults.borderColor='rgba(110,128,158,0.35)'; Chart.defaults.plugins.legend.labels.color='rgba(231,236,245,0.9)'; Chart.defaults.plugins.title.color='rgba(231,236,245,0.85)'; }
 // JavaScript for categories AI page
 
 let categoriesData = [];
