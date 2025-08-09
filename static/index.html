@@ -8,7 +8,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" />
     <!-- Bootstrap CSS for modern styling (local copy to avoid CDN issues) -->
     <!-- Use relative /static path for assets so Flask can serve them -->
-    <link rel="stylesheet" href="/static/assets/bootstrap.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/assets/bootstrap.min.css" />
+<link rel="stylesheet" href="/static/assets/monday-theme.css" />
     <style>
       :root {
         --primary: #3b7ddd;
@@ -361,5 +365,23 @@
     <!-- Load Chart.js and our custom script from the static folder -->
     <script src="/static/assets/chart.js"></script>
     <script src="/static/script.js"></script>
+  <!-- Session picker modal -->
+    <div id="sessionPickerBackdrop" class="pm-modal-backdrop">
+      <div class="pm-modal">
+        <header>Selecciona una sesión</header>
+        <div class="pm-body">
+          <p class="small-muted mb-2">Elige con qué sesión quieres trabajar. Si no tienes ninguna, crea una nueva.</p>
+          <div id="sessionPickerList" class="pm-list mb-3"></div>
+          <div class="d-flex align-items-center gap-2">
+            <input id="newSessionName" class="form-control" placeholder="Nombre de la nueva sesión (opcional)">
+            <button id="createEmptySessionBtn" class="btn btn-primary">Crear nueva</button>
+          </div>
+        </div>
+        <footer>
+          <button id="sessionPickerCancel" class="btn btn-outline-secondary">Cancelar</button>
+        </footer>
+      </div>
+    </div>
   </body>
+</html>
 </html>

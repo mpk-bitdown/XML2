@@ -1639,3 +1639,87 @@ function renderFileSizeChart(fileSizes) {
     },
   });
 }
+
+// --- Session picker logic ---
+async function fetchSessionsForUser() {
+  const userEmail = localStorage.getItem('userEmail') || '';
+  if (!userEmail) return [];
+  const res = await fetch('/api/sessions', { headers: { 'X-User-Email': userEmail } });
+  const data = await res.json();
+  if (!res.ok) return [];
+  return data.sessions || [];
+}
+
+function openSessionPicker(sessions) {
+  const backdrop = document.getElementById('sessionPickerBackdrop');
+  const list = document.getElementById('sessionPickerList');
+  const cancelBtn = document.getElementById('sessionPickerCancel');
+  const createBtn = document.getElementById('createEmptySessionBtn');
+  const nameInput = document.getElementById('newSessionName');
+  list.innerHTML = '';
+
+  if (sessions.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'pm-item';
+    empty.textContent = 'No tienes sesiones aún. Crea una nueva.';
+    list.appendChild(empty);
+  } else {
+    sessions.forEach((s) => {
+      const row = document.createElement('div');
+      row.className = 'pm-item';
+      const left = document.createElement('div');
+      const title = document.createElement('div');
+      title.textContent = s.name || `Sesión ${s.id}`;
+      const meta = document.createElement('div');
+      meta.className = 'small-muted';
+      const count = (s.document_ids || []).length;
+      meta.textContent = `${count} documento${count===1?'':'s'} • ${s.creator || ''}`;
+      left.appendChild(title);
+      left.appendChild(meta);
+      const go = document.createElement('button');
+      go.className = 'btn btn-outline-light btn-sm';
+      go.textContent = 'Usar';
+      go.addEventListener('click', () => {
+        window.location.href = `/?session=${s.id}`;
+      });
+      row.appendChild(left);
+      row.appendChild(go);
+      list.appendChild(row);
+    });
+  }
+
+  cancelBtn.onclick = () => { backdrop.classList.remove('show'); };
+  createBtn.onclick = async () => {
+    const name = (nameInput.value || '').trim();
+    try {
+      const userEmail = localStorage.getItem('userEmail') || '';
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-User-Email': userEmail },
+        body: JSON.stringify({ name: name || undefined, document_ids: [] })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo crear la sesión');
+      window.location.href = `/?session=${data.id}`;
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  backdrop.classList.add('show');
+}
+
+// Ensure session at start if ?session is missing
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const userEmail = localStorage.getItem('userEmail');
+    if (!userEmail) return; // login flow will redirect elsewhere
+    const params = new URLSearchParams(location.search);
+    if (!params.get('session')) {
+      const sessions = await fetchSessionsForUser();
+      openSessionPicker(sessions);
+    }
+  } catch (e) {
+    console.error(e);
+  }
+});

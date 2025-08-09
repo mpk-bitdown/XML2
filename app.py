@@ -1436,13 +1436,17 @@ def sessions_api() -> Any:
         return {"sessions": result}, 200
     # POST
     data = request.get_json(silent=True) or {}
-    document_ids = data.get("document_ids") or []
-    if not isinstance(document_ids, list) or not document_ids:
-        return {"error": "Se requieren los IDs de los documentos para crear una sesión"}, 400
+    document_ids = data.get("document_ids")
+    if document_ids is None:
+        document_ids = []
+    if not isinstance(document_ids, list):
+        return {"error": "Formato inválido: document_ids debe ser una lista"}, 400
     # Resolve documents and ensure they exist
-    documents = Document.query.filter(Document.id.in_(document_ids)).all()
-    if not documents:
-        return {"error": "No se encontraron documentos válidos"}, 400
+    documents = []
+    if document_ids:
+        documents = Document.query.filter(Document.id.in_(document_ids)).all()
+        if not documents:
+            return {"error": "No se encontraron documentos válidos"}, 400
     name = (data.get("name") or "").strip()
     if not name:
         name = f"Sesión {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -1451,7 +1455,7 @@ def sessions_api() -> Any:
     session_obj = Session(name=name, created_by_id=current_user.id)
     db.session.add(session_obj)
     db.session.flush()  # obtain session id
-    # Link documents to session
+    # Link documents to session (if any)
     for doc in documents:
         db.session.add(SessionDocument(session_id=session_obj.id, document_id=doc.id))
     # Always include creator in access list
